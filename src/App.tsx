@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { AppShell } from "@shared/components/layout";
 import { useAuth } from "@shared/hooks/useAuth";
 import TrialExpiredScreen from "@shared/components/TrialExpiredScreen";
+import InitialSetup from "@shared/components/InitialSetup";
 import LoginPage from "@features/auth/pages/LoginPage";
 import ChangePasswordPage from "@features/auth/pages/ChangePasswordPage";
 import PatientListPage from "@features/patients/pages/PatientListPage";
@@ -31,6 +32,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [trialExpired, setTrialExpired] = useState(false);
   const [trialInfo, setTrialInfo] = useState<TrialStatus | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   useEffect(() => {
     initApp();
@@ -38,10 +40,17 @@ function App() {
 
   const initApp = async () => {
     try {
+      // Check if initial setup is needed
+      const setupDone = await invoke<boolean>("is_setup_completed");
+      if (!setupDone) {
+        setNeedsSetup(true);
+        setLoading(false);
+        return;
+      }
+
       // Check license first
       const licensed = await invoke<boolean>("is_licensed");
       if (!licensed) {
-        // Check trial
         const trial = await invoke<TrialStatus>("check_trial");
         setTrialInfo(trial);
         if (trial.is_expired) {
@@ -51,7 +60,7 @@ function App() {
         }
       }
     } catch {
-      // If trial check fails, let them in (fail open for now)
+      // If checks fail, let them in
     }
 
     await checkSession();
@@ -70,6 +79,19 @@ function App() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  // Initial setup on first run
+  if (needsSetup) {
+    return (
+      <InitialSetup
+        onCompleted={() => {
+          setNeedsSetup(false);
+          setLoading(true);
+          initApp();
+        }}
+      />
     );
   }
 
