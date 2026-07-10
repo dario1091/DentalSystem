@@ -2,6 +2,7 @@ import { LogOut, User } from "lucide-react";
 import { useAuth } from "@shared/hooks/useAuth";
 import { Badge } from "@shared/components/ui";
 import UpdateButton from "@shared/components/UpdateButton";
+import DarkModeToggle from "@shared/components/DarkModeToggle";
 
 const roleLabels: Record<string, string> = {
   master: "Administrador",
@@ -23,15 +24,16 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
+    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-800">
       <div>
-        <h2 className="text-lg font-semibold text-gray-800">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
           Consultorio Odontológico
         </h2>
       </div>
       <div className="flex items-center gap-4">
         <UpdateButton />
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <DarkModeToggle />
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
           <User size={16} />
           <span>{user?.display_name || "Usuario"}</span>
           <Badge variant={roleVariants[user?.role || "master"]} dot>

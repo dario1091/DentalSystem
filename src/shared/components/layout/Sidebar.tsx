@@ -36,9 +36,9 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="flex h-full w-60 flex-col border-r border-gray-200 bg-white">
-      <div className="flex h-16 items-center justify-center border-b border-gray-200 px-4">
-        <h1 className="text-lg font-bold text-blue-600">🦷 DentalSystem</h1>
+    <aside className="flex h-full w-60 flex-col border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex h-16 items-center justify-center border-b border-gray-200 px-4 dark:border-gray-700">
+        <h1 className="text-lg font-bold text-blue-600 dark:text-blue-400">🦷 DentalSystem</h1>
       </div>
       <nav className="flex-1 overflow-y-auto p-3">
         <ul className="space-y-1">
@@ -49,8 +49,8 @@ export function Sidebar() {
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                      ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
                   }`
                 }
               >

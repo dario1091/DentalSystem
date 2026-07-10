@@ -12,9 +12,6 @@ import PatientDetailPage from "@features/patients/pages/PatientDetailPage";
 import DoctorListPage from "@features/doctors/pages/DoctorListPage";
 import AppointmentCalendarPage from "@features/appointments/pages/AppointmentCalendarPage";
 import ProcedureListPage from "@features/procedures/pages/ProcedureListPage";
-import OdontogramPage from "@features/odontogram/pages/OdontogramPage";
-import ClinicalHistoryPage from "@features/clinical-history/pages/ClinicalHistoryPage";
-import DocumentsPage from "@features/documents/pages/DocumentsPage";
 import ConsentListPage from "@features/consents/pages/ConsentListPage";
 import BillingPage from "@features/billing/pages/BillingPage";
 import SettingsPage from "@features/settings/pages/SettingsPage";
@@ -63,10 +60,14 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="flex h-screen flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-white">
         <div className="text-center">
-          <div className="mb-3 text-4xl">🦷</div>
-          <p className="text-sm text-gray-500">Cargando...</p>
+          <div className="mb-4 text-6xl">🦷</div>
+          <h1 className="mb-2 text-2xl font-bold text-gray-800">DentalSystem</h1>
+          <p className="mb-4 text-sm text-gray-500">Sistema de gestión odontológica</p>
+          <div className="mx-auto h-1 w-32 overflow-hidden rounded-full bg-gray-200">
+            <div className="h-full w-full animate-pulse rounded-full bg-blue-500" />
+          </div>
         </div>
       </div>
     );
@@ -110,9 +111,6 @@ function App() {
           <Route path="doctors" element={<DoctorListPage />} />
           <Route path="appointments" element={<AppointmentCalendarPage />} />
           <Route path="procedures" element={<ProcedureListPage />} />
-          <Route path="odontogram" element={<OdontogramPage />} />
-          <Route path="clinical-history" element={<ClinicalHistoryPage />} />
-          <Route path="documents" element={<DocumentsPage />} />
           <Route path="consents" element={<ConsentListPage />} />
           <Route path="billing" element={<BillingPage />} />
           <Route path="settings" element={<SettingsPage />} />
