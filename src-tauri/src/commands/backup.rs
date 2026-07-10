@@ -193,43 +193,59 @@ pub fn initial_setup(
         return Err("La configuración inicial ya fue completada. Use la pantalla de Configuración para modificar datos.".to_string());
     }
 
-    // Save clinic info
-    let settings = vec![
-        ("clinic_name", clinic_name.as_str()),
-        ("clinic_address", clinic_address.as_str()),
-        ("clinic_phone", clinic_phone.as_str()),
-        ("setup_completed", "true"),
-    ];
+    // Transaction for all DB writes
+    conn.execute_batch("BEGIN").map_err(|e| e.to_string())?;
 
-    for (key, value) in settings {
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2",
-            rusqlite::params![key, value],
-        )
-        .map_err(|e| format!("Error al guardar {}: {}", key, e))?;
+    let db_result = (|| -> Result<(), String> {
+        // Save clinic info
+        let settings = vec![
+            ("clinic_name", clinic_name.as_str()),
+            ("clinic_address", clinic_address.as_str()),
+            ("clinic_phone", clinic_phone.as_str()),
+            ("setup_completed", "true"),
+        ];
+
+        for (key, value) in settings {
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2",
+                rusqlite::params![key, value],
+            )
+            .map_err(|e| format!("Error al guardar {}: {}", key, e))?;
+        }
+
+        // Save logo if provided
+        if let (Some(data), Some(file_name)) = (&logo_data, &logo_file_name) {
+            use tauri::Manager;
+            let app_dir = app_handle.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let logo_dir = app_dir.join("clinic");
+            std::fs::create_dir_all(&logo_dir).map_err(|e| e.to_string())?;
+
+            let ext = file_name.rsplit('.').next().unwrap_or("png");
+            let logo_path = logo_dir.join(format!("logo.{}", ext));
+            std::fs::write(&logo_path, data)
+                .map_err(|e| format!("Error al guardar logo: {}", e))?;
+
+            let path_str = logo_path.to_string_lossy().to_string();
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('clinic_logo_path', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1",
+                rusqlite::params![path_str],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    })();
+
+    match db_result {
+        Ok(()) => {
+            conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(e)
+        }
     }
-
-    // Save logo if provided
-    if let (Some(data), Some(file_name)) = (logo_data, logo_file_name) {
-        use tauri::Manager;
-        let app_dir = app_handle.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let logo_dir = app_dir.join("clinic");
-        std::fs::create_dir_all(&logo_dir).map_err(|e| e.to_string())?;
-
-        let ext = file_name.rsplit('.').next().unwrap_or("png");
-        let logo_path = logo_dir.join(format!("logo.{}", ext));
-        std::fs::write(&logo_path, &data)
-            .map_err(|e| format!("Error al guardar logo: {}", e))?;
-
-        let path_str = logo_path.to_string_lossy().to_string();
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES ('clinic_logo_path', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1",
-            rusqlite::params![path_str],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
 }
 
 /// Check if initial setup has been completed

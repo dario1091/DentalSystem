@@ -30,36 +30,52 @@ pub fn create_invoice(
     notes: Option<&str>,
     created_by: i64,
 ) -> Result<Invoice, String> {
-    let invoice_number = next_invoice_number(conn)?;
+    // Transaction: all or nothing
+    conn.execute_batch("BEGIN IMMEDIATE").map_err(|e| e.to_string())?;
 
-    // Calculate totals
-    let subtotal: f64 = items.iter().map(|(_, _, qty, price, disc)| {
-        let line_total = (*qty as f64) * price;
-        line_total - disc
-    }).sum();
-    let total = subtotal - global_discount;
+    let result = (|| -> Result<i64, String> {
+        let invoice_number = next_invoice_number(conn)?;
 
-    conn.execute(
-        "INSERT INTO invoices (invoice_number, patient_id, appointment_id, subtotal, discount, total, notes, created_by)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![invoice_number, patient_id, appointment_id, subtotal, global_discount, total, notes, created_by],
-    )
-    .map_err(|e| format!("Error al crear factura: {}", e))?;
+        // Calculate totals
+        let subtotal: f64 = items.iter().map(|(_, _, qty, price, disc)| {
+            let line_total = (*qty as f64) * price;
+            line_total - disc
+        }).sum();
+        let total = subtotal - global_discount;
 
-    let invoice_id = conn.last_insert_rowid();
-
-    // Insert items
-    for (proc_id, desc, qty, unit_price, discount) in items {
-        let item_total = (*qty as f64) * unit_price - discount;
         conn.execute(
-            "INSERT INTO invoice_items (invoice_id, procedure_id, description, quantity, unit_price, discount, total)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![invoice_id, proc_id, desc, qty, unit_price, discount, item_total],
+            "INSERT INTO invoices (invoice_number, patient_id, appointment_id, subtotal, discount, total, notes, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![invoice_number, patient_id, appointment_id, subtotal, global_discount, total, notes, created_by],
         )
-        .map_err(|e| format!("Error al agregar item: {}", e))?;
-    }
+        .map_err(|e| format!("Error al crear factura: {}", e))?;
 
-    get_invoice(conn, invoice_id)
+        let invoice_id = conn.last_insert_rowid();
+
+        // Insert items
+        for (proc_id, desc, qty, unit_price, discount) in items {
+            let item_total = (*qty as f64) * unit_price - discount;
+            conn.execute(
+                "INSERT INTO invoice_items (invoice_id, procedure_id, description, quantity, unit_price, discount, total)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![invoice_id, proc_id, desc, qty, unit_price, discount, item_total],
+            )
+            .map_err(|e| format!("Error al agregar item: {}", e))?;
+        }
+
+        Ok(invoice_id)
+    })();
+
+    match result {
+        Ok(invoice_id) => {
+            conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+            get_invoice(conn, invoice_id)
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(e)
+        }
+    }
 }
 
 pub fn get_invoice(conn: &Connection, id: i64) -> Result<Invoice, String> {
@@ -172,46 +188,61 @@ pub fn add_payment(conn: &Connection, invoice_id: i64, amount: f64, method: &str
         return Err("El pago excede el saldo pendiente.".to_string());
     }
 
-    conn.execute(
-        "INSERT INTO payments (invoice_id, amount, payment_method, reference, notes, created_by)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![invoice_id, amount, method, reference, notes, created_by],
-    )
-    .map_err(|e| format!("Error al registrar pago: {}", e))?;
+    // Transaction: insert payment + update invoice atomically
+    conn.execute_batch("BEGIN IMMEDIATE").map_err(|e| e.to_string())?;
 
-    let payment_id = conn.last_insert_rowid();
+    let result = (|| -> Result<i64, String> {
+        conn.execute(
+            "INSERT INTO payments (invoice_id, amount, payment_method, reference, notes, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![invoice_id, amount, method, reference, notes, created_by],
+        )
+        .map_err(|e| format!("Error al registrar pago: {}", e))?;
 
-    // Update invoice amount_paid and status
-    let new_status = if new_paid >= invoice.total { "paid" } else { "partial" };
-    conn.execute(
-        "UPDATE invoices SET amount_paid = ?1, status = ?2, updated_at = datetime('now', 'localtime') WHERE id = ?3",
-        params![new_paid, new_status, invoice_id],
-    )
-    .map_err(|e| e.to_string())?;
+        let payment_id = conn.last_insert_rowid();
 
-    // Return payment
-    conn.query_row(
-        "SELECT p.id, p.invoice_id, p.amount, p.payment_method, p.reference, p.notes,
-                p.created_by, u.display_name, p.created_at
-         FROM payments p
-         LEFT JOIN users u ON u.id = p.created_by
-         WHERE p.id = ?1",
-        params![payment_id],
-        |row| {
-            Ok(Payment {
-                id: row.get(0)?,
-                invoice_id: row.get(1)?,
-                amount: row.get(2)?,
-                payment_method: row.get(3)?,
-                reference: row.get(4)?,
-                notes: row.get(5)?,
-                created_by: row.get(6)?,
-                created_by_name: row.get(7)?,
-                created_at: row.get(8)?,
-            })
-        },
-    )
-    .map_err(|_| "Error al obtener pago.".to_string())
+        // Update invoice amount_paid and status
+        let new_status = if new_paid >= invoice.total { "paid" } else { "partial" };
+        conn.execute(
+            "UPDATE invoices SET amount_paid = ?1, status = ?2, updated_at = datetime('now', 'localtime') WHERE id = ?3",
+            params![new_paid, new_status, invoice_id],
+        )
+        .map_err(|e| e.to_string())?;
+
+        Ok(payment_id)
+    })();
+
+    match result {
+        Ok(payment_id) => {
+            conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
+            conn.query_row(
+                "SELECT p.id, p.invoice_id, p.amount, p.payment_method, p.reference, p.notes,
+                        p.created_by, u.display_name, p.created_at
+                 FROM payments p
+                 LEFT JOIN users u ON u.id = p.created_by
+                 WHERE p.id = ?1",
+                params![payment_id],
+                |row| {
+                    Ok(Payment {
+                        id: row.get(0)?,
+                        invoice_id: row.get(1)?,
+                        amount: row.get(2)?,
+                        payment_method: row.get(3)?,
+                        reference: row.get(4)?,
+                        notes: row.get(5)?,
+                        created_by: row.get(6)?,
+                        created_by_name: row.get(7)?,
+                        created_at: row.get(8)?,
+                    })
+                },
+            )
+            .map_err(|_| "Error al obtener pago.".to_string())
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(e)
+        }
+    }
 }
 
 pub fn list_by_patient(conn: &Connection, patient_id: i64) -> Result<Vec<Invoice>, String> {
