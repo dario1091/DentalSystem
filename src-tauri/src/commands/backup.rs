@@ -48,7 +48,7 @@ pub fn restore_backup(
     app_handle: tauri::AppHandle,
     db: State<'_, Database>,
     session: State<'_, SessionState>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     session.require_role(&UserRole::Master)?;
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
 
@@ -59,12 +59,13 @@ pub fn restore_backup(
         return Err("Archivo de backup no encontrado.".to_string());
     }
 
-    // Drop connection before restore (we'll need app restart)
+    // Release the DB lock before restore
     drop(conn);
 
     backup_service::restore_backup(&zip, &db_path, &docs_path)?;
 
-    Ok(())
+    // Return message - frontend must trigger app restart
+    Ok("Backup restaurado exitosamente. La aplicación se reiniciará.".to_string())
 }
 
 #[tauri::command]
@@ -171,7 +172,7 @@ pub fn save_clinic_logo(
     Ok(path_str)
 }
 
-/// Initial setup: save clinic info (used on first run)
+/// Initial setup: save clinic info (used on first run). Rejects if already completed.
 #[tauri::command]
 pub fn initial_setup(
     clinic_name: String,
@@ -183,6 +184,14 @@ pub fn initial_setup(
     db: State<'_, Database>,
 ) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    // Prevent re-invocation
+    let already_done: Option<String> = conn
+        .query_row("SELECT value FROM settings WHERE key = 'setup_completed'", [], |row| row.get(0))
+        .ok();
+    if already_done.as_deref() == Some("true") {
+        return Err("La configuración inicial ya fue completada. Use la pantalla de Configuración para modificar datos.".to_string());
+    }
 
     // Save clinic info
     let settings = vec![

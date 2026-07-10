@@ -186,7 +186,8 @@ pub fn is_licensed(
 }
 
 /// DEV ONLY: Generate a license for a given installation ID.
-/// Call this from a separate tool or test — NOT exposed to the frontend.
+/// This command is ONLY available in debug builds.
+#[cfg(debug_assertions)]
 #[tauri::command]
 pub fn dev_generate_license(
     installation_id: String,
@@ -197,4 +198,12 @@ pub fn dev_generate_license(
     session.require_role(&UserRole::Master)?;
 
     Ok(compute_license_key(&installation_id))
+}
+
+#[cfg(not(debug_assertions))]
+#[tauri::command]
+pub fn dev_generate_license(
+    _installation_id: String,
+) -> Result<String, String> {
+    Err("No disponible en producción.".to_string())
 }

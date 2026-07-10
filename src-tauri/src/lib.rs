@@ -23,8 +23,24 @@ pub fn run() {
                     .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
             }
 
+            let session = SessionState::new();
+
+            // Load session timeout from settings
+            {
+                let conn = db.conn.lock().map_err(|e| e.to_string())?;
+                if let Ok(timeout_str) = conn.query_row(
+                    "SELECT value FROM settings WHERE key = 'session_timeout_minutes'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                ) {
+                    if let Ok(minutes) = timeout_str.parse::<u64>() {
+                        session.set_timeout(minutes);
+                    }
+                }
+            }
+
             app.manage(db);
-            app.manage(SessionState::new());
+            app.manage(session);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

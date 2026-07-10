@@ -73,8 +73,13 @@ export default function SettingsPage() {
     if (!confirm("Esta acción NO se puede deshacer. ¿Confirma la restauración?")) return;
 
     try {
-      await invoke("restore_backup", { zipPath: path });
-      toast("success", "Backup restaurado. Reinicie la aplicación para aplicar los cambios.");
+      const msg = await invoke<string>("restore_backup", { zipPath: path });
+      toast("success", msg);
+      // Restart the app after 2 seconds
+      setTimeout(async () => {
+        const { relaunch } = await import("@tauri-apps/plugin-process");
+        await relaunch();
+      }, 2000);
     } catch (err) {
       toast("error", String(err));
     }

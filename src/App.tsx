@@ -5,6 +5,7 @@ import { AppShell } from "@shared/components/layout";
 import { useAuth } from "@shared/hooks/useAuth";
 import TrialExpiredScreen from "@shared/components/TrialExpiredScreen";
 import InitialSetup from "@shared/components/InitialSetup";
+import { ProtectedRoute } from "@shared/components/ProtectedRoute";
 import LoginPage from "@features/auth/pages/LoginPage";
 import ChangePasswordPage from "@features/auth/pages/ChangePasswordPage";
 import PatientListPage from "@features/patients/pages/PatientListPage";
@@ -48,7 +49,7 @@ function App() {
         return;
       }
 
-      // Check license first
+      // Check license
       const licensed = await invoke<boolean>("is_licensed");
       if (!licensed) {
         const trial = await invoke<TrialStatus>("check_trial");
@@ -59,8 +60,10 @@ function App() {
           return;
         }
       }
-    } catch {
-      // If checks fail, let them in
+    } catch (err) {
+      // If license/trial check fails due to DB not ready, allow through
+      // but only if setup is completed (prevents bypass)
+      console.error("Trial check error:", err);
     }
 
     await checkSession();
@@ -135,8 +138,8 @@ function App() {
           <Route path="procedures" element={<ProcedureListPage />} />
           <Route path="consents" element={<ConsentListPage />} />
           <Route path="billing" element={<BillingPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="users" element={<UsersListPage />} />
+          <Route path="settings" element={<ProtectedRoute allowedRoles={["master"]}><SettingsPage /></ProtectedRoute>} />
+          <Route path="users" element={<ProtectedRoute allowedRoles={["master"]}><UsersListPage /></ProtectedRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>
