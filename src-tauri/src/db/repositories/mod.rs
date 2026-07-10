@@ -1,4 +1,5 @@
 pub mod appointment_repo;
+pub mod billing_repo;
 pub mod clinical_history_repo;
 pub mod consent_repo;
 pub mod doctor_repo;

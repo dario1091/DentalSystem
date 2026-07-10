@@ -1,4 +1,5 @@
 pub mod appointment;
+pub mod billing;
 pub mod clinical_history;
 pub mod consent;
 pub mod doctor;

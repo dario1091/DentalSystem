@@ -24,6 +24,7 @@ import OdontogramPage from "@features/odontogram/pages/OdontogramPage";
 import ClinicalHistoryTab from "@features/clinical-history/components/ClinicalHistoryTab";
 import DocumentsTab from "@features/documents/components/DocumentsTab";
 import ConsentsTab from "@features/consents/components/ConsentsTab";
+import BillingTab from "@features/billing/components/BillingTab";
 
 type Tab = "general" | "odontogram" | "history" | "documents" | "consents" | "billing";
 
@@ -176,7 +177,7 @@ export default function PatientDetailPage() {
         {activeTab === "history" && <ClinicalHistoryTab patientId={patient.id} />}
         {activeTab === "documents" && <DocumentsTab patientId={patient.id} />}
         {activeTab === "consents" && <ConsentsTab patientId={patient.id} />}
-        {activeTab === "billing" && <PlaceholderTab label="Cuenta / Facturación" phase={11} />}
+        {activeTab === "billing" && <BillingTab patientId={patient.id} />}
       </div>
     </div>
   );
@@ -246,11 +247,4 @@ function DetailRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function PlaceholderTab({ label, phase }: { label: string; phase: number }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-gray-400">
-      <p className="text-lg font-medium">{label}</p>
-      <p className="text-sm">Disponible en la Fase {phase}</p>
-    </div>
-  );
-}
+

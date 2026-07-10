@@ -1,5 +1,7 @@
 pub mod appointments;
 pub mod auth;
+pub mod backup;
+pub mod billing;
 pub mod clinical_history;
 pub mod consents;
 pub mod doctors;

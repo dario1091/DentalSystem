@@ -7,6 +7,7 @@ import type { Appointment, AppointmentProcedure, AppointmentStatus } from "../ty
 import { STATUS_CONFIG, VALID_TRANSITIONS, formatTime, formatDate } from "../types";
 import { formatCurrency } from "@features/procedures/types";
 import ProcedureSelector from "./ProcedureSelector";
+import InvoiceFromAppointmentModal from "@features/billing/components/InvoiceFromAppointmentModal";
 
 interface AppointmentDetailModalProps {
   appointmentId: number;
@@ -27,6 +28,7 @@ export default function AppointmentDetailModal({
   const [procedures, setProcedures] = useState<AppointmentProcedure[]>([]);
   const [loading, setLoading] = useState(true);
   const [showProcedureSelector, setShowProcedureSelector] = useState(false);
+  const [showBillingModal, setShowBillingModal] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -49,11 +51,15 @@ export default function AppointmentDetailModal({
   }, [appointmentId]);
 
   const handleStatusChange = async (newStatus: AppointmentStatus) => {
-    const label = STATUS_CONFIG[newStatus].label;
-    if (!confirm(`¿Cambiar estado a "${label}"?`)) return;
+    // If completing, show billing modal first
+    if (newStatus === "completed") {
+      setShowBillingModal(true);
+      return;
+    }
 
     try {
       await changeStatus({ appointment_id: appointmentId, new_status: newStatus });
+      const label = STATUS_CONFIG[newStatus].label;
       toast("success", `Estado cambiado a: ${label}`);
       fetchData();
       onUpdated();
@@ -244,6 +250,20 @@ export default function AppointmentDetailModal({
           onAdded={() => {
             setShowProcedureSelector(false);
             fetchData();
+          }}
+        />
+      )}
+
+      {/* Billing Modal (on complete) */}
+      {showBillingModal && appointment && (
+        <InvoiceFromAppointmentModal
+          appointmentId={appointmentId}
+          patientId={appointment.patient_id}
+          onClose={() => setShowBillingModal(false)}
+          onCompleted={() => {
+            setShowBillingModal(false);
+            fetchData();
+            onUpdated();
           }}
         />
       )}

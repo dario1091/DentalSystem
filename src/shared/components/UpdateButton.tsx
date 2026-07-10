@@ -27,9 +27,16 @@ export default function UpdateButton() {
         setTimeout(() => setState("idle"), 3000);
       }
     } catch (err) {
-      setError(String(err));
-      setState("error");
-      setTimeout(() => setState("idle"), 5000);
+      // Network errors, 404 (no release yet), etc. = treat as up to date
+      const errMsg = String(err).toLowerCase();
+      if (errMsg.includes("network") || errMsg.includes("404") || errMsg.includes("fetch") || errMsg.includes("endpoint")) {
+        setState("up-to-date");
+        setTimeout(() => setState("idle"), 3000);
+      } else {
+        setError(String(err));
+        setState("error");
+        setTimeout(() => setState("idle"), 5000);
+      }
     }
   };
 

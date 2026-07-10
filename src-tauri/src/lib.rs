@@ -93,6 +93,19 @@ pub fn run() {
             commands::consents::export_consent_pdf,
             commands::consents::list_consent_templates_full,
             commands::consents::update_consent_template,
+            commands::billing::create_invoice,
+            commands::billing::get_invoice,
+            commands::billing::list_invoices_by_patient,
+            commands::billing::add_payment,
+            commands::billing::get_patient_balance,
+            commands::billing::get_revenue_report,
+            commands::billing::export_invoice_pdf,
+            commands::backup::create_backup,
+            commands::backup::restore_backup,
+            commands::backup::list_backups,
+            commands::backup::get_last_backup_date,
+            commands::backup::get_settings,
+            commands::backup::update_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

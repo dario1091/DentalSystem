@@ -71,6 +71,11 @@ impl MigrationRunner {
                     name: "consent_templates",
                     sql: include_str!("v011_consent_templates.sql"),
                 },
+                Migration {
+                    version: 12,
+                    name: "billing",
+                    sql: include_str!("v012_billing.sql"),
+                },
             ],
         }
     }
