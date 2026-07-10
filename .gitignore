@@ -19,6 +19,9 @@ src-tauri/target/
 # Kiro local agents
 .kiro/agents/
 
+# Tauri updater private key
+src-tauri/keys/updater.key
+
 # OS
 .DS_Store
 Thumbs.db

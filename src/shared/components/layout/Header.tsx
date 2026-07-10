@@ -1,6 +1,7 @@
 import { LogOut, User } from "lucide-react";
 import { useAuth } from "@shared/hooks/useAuth";
 import { Badge } from "@shared/components/ui";
+import UpdateButton from "@shared/components/UpdateButton";
 
 const roleLabels: Record<string, string> = {
   master: "Administrador",
@@ -29,6 +30,7 @@ export function Header() {
         </h2>
       </div>
       <div className="flex items-center gap-4">
+        <UpdateButton />
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <User size={16} />
           <span>{user?.display_name || "Usuario"}</span>

@@ -28,6 +28,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -35,5 +36,16 @@
       "icons/icon.ico",
       "icons/icon.png"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE3OEM4MzE3NjAxNzAzNjgKUldSb0F4ZGdGNE9NRjJMYTNGcnQ3MW52VmNyRTlKZk4yZitWVUVtQVdVdC9tYVd5K3RjVWtZaCsK",
+      "endpoints": [
+        "https://github.com/dario1091/DentalSystem/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
