@@ -22,8 +22,10 @@ import type { Patient } from "../types";
 import { DOCUMENT_TYPES, GENDERS, BLOOD_TYPES } from "../types";
 import OdontogramPage from "@features/odontogram/pages/OdontogramPage";
 import ClinicalHistoryTab from "@features/clinical-history/components/ClinicalHistoryTab";
+import DocumentsTab from "@features/documents/components/DocumentsTab";
+import ConsentsTab from "@features/consents/components/ConsentsTab";
 
-type Tab = "general" | "odontogram" | "history" | "documents" | "billing";
+type Tab = "general" | "odontogram" | "history" | "documents" | "consents" | "billing";
 
 export default function PatientDetailPage() {
   const { id } = useParams();
@@ -75,6 +77,7 @@ export default function PatientDetailPage() {
     { key: "odontogram", label: "Odontograma", icon: <Activity size={16} /> },
     { key: "history", label: "Historia Clínica", icon: <FileText size={16} /> },
     { key: "documents", label: "Documentos", icon: <FolderOpen size={16} /> },
+    { key: "consents", label: "Consentimientos", icon: <FileText size={16} /> },
     { key: "billing", label: "Cuenta", icon: <Receipt size={16} /> },
   ];
 
@@ -171,7 +174,8 @@ export default function PatientDetailPage() {
         {activeTab === "general" && <GeneralTab patient={patient} />}
         {activeTab === "odontogram" && <OdontogramPage patientId={patient.id} />}
         {activeTab === "history" && <ClinicalHistoryTab patientId={patient.id} />}
-        {activeTab === "documents" && <PlaceholderTab label="Documentos" phase={9} />}
+        {activeTab === "documents" && <DocumentsTab patientId={patient.id} />}
+        {activeTab === "consents" && <ConsentsTab patientId={patient.id} />}
         {activeTab === "billing" && <PlaceholderTab label="Cuenta / Facturación" phase={11} />}
       </div>
     </div>

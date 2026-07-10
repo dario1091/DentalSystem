@@ -76,6 +76,23 @@ pub fn run() {
             commands::clinical_history::add_addendum,
             commands::clinical_history::update_evolution,
             commands::clinical_history::get_evolutions,
+            commands::documents::upload_document,
+            commands::documents::list_documents,
+            commands::documents::get_document_data,
+            commands::documents::delete_document,
+            commands::documents::set_documents_path,
+            commands::documents::get_documents_path,
+            commands::documents::get_disk_space,
+            commands::consents::create_consent,
+            commands::consents::list_consents,
+            commands::consents::update_consent_status,
+            commands::consents::save_consent_signature,
+            commands::consents::generate_whatsapp_link,
+            commands::consents::get_consent_templates,
+            commands::consents::get_consent_pdf_data,
+            commands::consents::export_consent_pdf,
+            commands::consents::list_consent_templates_full,
+            commands::consents::update_consent_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

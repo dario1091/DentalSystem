@@ -56,6 +56,21 @@ impl MigrationRunner {
                     name: "clinical_history",
                     sql: include_str!("v008_clinical_history.sql"),
                 },
+                Migration {
+                    version: 9,
+                    name: "documents",
+                    sql: include_str!("v009_documents.sql"),
+                },
+                Migration {
+                    version: 10,
+                    name: "consents",
+                    sql: include_str!("v010_consents.sql"),
+                },
+                Migration {
+                    version: 11,
+                    name: "consent_templates",
+                    sql: include_str!("v011_consent_templates.sql"),
+                },
             ],
         }
     }

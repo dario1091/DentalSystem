@@ -1,6 +1,8 @@
 pub mod appointment;
 pub mod clinical_history;
+pub mod consent;
 pub mod doctor;
+pub mod document;
 pub mod odontogram;
 pub mod patient;
 pub mod procedure;
