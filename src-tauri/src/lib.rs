@@ -106,6 +106,10 @@ pub fn run() {
             commands::backup::get_last_backup_date,
             commands::backup::get_settings,
             commands::backup::update_settings,
+            commands::trial::check_trial,
+            commands::trial::activate_license,
+            commands::trial::is_licensed,
+            commands::trial::dev_generate_license,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

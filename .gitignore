@@ -22,6 +22,9 @@ src-tauri/target/
 # Tauri updater private key
 src-tauri/keys/updater.key
 
+# License generator (developer only - contains secret salt)
+tools/
+
 # OS
 .DS_Store
 Thumbs.db
