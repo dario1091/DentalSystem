@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { LogOut, User } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
 import { useAuth } from "@shared/hooks/useAuth";
 import { Badge } from "@shared/components/ui";
 import UpdateButton from "@shared/components/UpdateButton";
@@ -18,6 +20,13 @@ const roleVariants: Record<string, "info" | "success" | "warning"> = {
 
 export function Header() {
   const { user, logout } = useAuth();
+  const [appVersion, setAppVersion] = useState("");
+
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => setAppVersion(""));
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -25,10 +34,15 @@ export function Header() {
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-800">
-      <div>
+      <div className="flex items-center gap-2">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
           Consultorio Odontológico
         </h2>
+        {appVersion && (
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+            v{appVersion}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-4">
         <UpdateButton />
