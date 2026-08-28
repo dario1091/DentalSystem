@@ -31,7 +31,7 @@ export default function InvoiceFromAppointmentModal({
 }: InvoiceFromAppointmentModalProps) {
   const { toast } = useToast();
   const { getAppointmentProcedures, changeStatus } = useAppointments();
-  const { createInvoice, addPayment } = useBilling();
+  const { createInvoice, addPayment, getPatientCredit, applyCreditToInvoice } = useBilling();
 
   const [items, setItems] = useState<EditableItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +42,8 @@ export default function InvoiceFromAppointmentModal({
   const [paymentMethod, setPaymentMethod] = useState("efectivo");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentRef, setPaymentRef] = useState("");
+  const [availableCredit, setAvailableCredit] = useState(0);
+  const [useCredit, setUseCredit] = useState(false);
 
   useEffect(() => {
     loadProcedures();
@@ -49,7 +51,11 @@ export default function InvoiceFromAppointmentModal({
 
   const loadProcedures = async () => {
     try {
-      const procs = await getAppointmentProcedures(appointmentId);
+      const [procs, credit] = await Promise.all([
+        getAppointmentProcedures(appointmentId),
+        getPatientCredit(patientId),
+      ]);
+      setAvailableCredit(credit.balance);
       const editableItems: EditableItem[] = procs.map((p, idx) => ({
         id: `proc-${idx}`,
         procedure_id: p.procedure_id,
@@ -112,12 +118,26 @@ export default function InvoiceFromAppointmentModal({
 
       // 2. Register payment if collecting now
       if (collectNow && paymentAmount && parseFloat(paymentAmount) > 0) {
-        await addPayment({
-          invoice_id: invoice.id,
-          amount: parseFloat(paymentAmount),
-          payment_method: paymentMethod,
-          reference: paymentRef || null,
-        });
+        const amount = parseFloat(paymentAmount);
+        if (useCredit) {
+          // Aplicar saldo a favor a la factura (limitado al crédito disponible).
+          const creditToApply = Math.min(amount, availableCredit);
+          if (creditToApply > 0) {
+            await applyCreditToInvoice({
+              patient_id: patientId,
+              invoice_id: invoice.id,
+              amount: creditToApply,
+              notes: paymentRef || null,
+            });
+          }
+        } else {
+          await addPayment({
+            invoice_id: invoice.id,
+            amount,
+            payment_method: paymentMethod,
+            reference: paymentRef || null,
+          });
+        }
       }
 
       // 3. Mark appointment as completed
@@ -220,6 +240,21 @@ export default function InvoiceFromAppointmentModal({
             <span className="text-sm font-medium text-gray-700">Registrar pago ahora</span>
           </label>
 
+          {collectNow && availableCredit > 0 && (
+            <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2">
+              <input
+                type="checkbox"
+                checked={useCredit}
+                onChange={(e) => setUseCredit(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-blue-800">
+                Usar saldo a favor
+                <span className="block text-xs text-blue-600">Disponible: {formatMoney(availableCredit)}</span>
+              </span>
+            </label>
+          )}
+
           {collectNow && (
             <div className="mt-3 grid grid-cols-3 gap-3">
               <div>
@@ -237,11 +272,16 @@ export default function InvoiceFromAppointmentModal({
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm"
+                  disabled={useCredit}
+                  className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400"
                 >
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
+                  {useCredit ? (
+                    <option>Saldo a favor</option>
+                  ) : (
+                    PAYMENT_METHODS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))
+                  )}
                 </select>
               </div>
               <div>

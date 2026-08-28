@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   Invoice, InvoiceDetail, PatientBalance, Payment, RevenueReport,
   CreateInvoiceRequest, AddPaymentRequest,
+  PatientCredit, CreditMovement, RefundResult,
+  AddCreditRequest, ApplyCreditRequest, RefundCreditRequest,
 } from "../types";
 
 export function useBilling() {
@@ -33,6 +35,28 @@ export function useBilling() {
     return invoke<string>("export_invoice_pdf", { invoiceId });
   };
 
+  // ===== Saldo a favor / anticipos =====
+
+  const addPatientCredit = async (request: AddCreditRequest): Promise<PatientCredit> => {
+    return invoke<PatientCredit>("add_patient_credit", { request });
+  };
+
+  const getPatientCredit = async (patientId: number): Promise<PatientCredit> => {
+    return invoke<PatientCredit>("get_patient_credit", { patientId });
+  };
+
+  const listCreditMovements = async (patientId: number): Promise<CreditMovement[]> => {
+    return invoke<CreditMovement[]>("list_credit_movements", { patientId });
+  };
+
+  const applyCreditToInvoice = async (request: ApplyCreditRequest): Promise<PatientCredit> => {
+    return invoke<PatientCredit>("apply_credit_to_invoice", { request });
+  };
+
+  const refundPatientCredit = async (request: RefundCreditRequest): Promise<RefundResult> => {
+    return invoke<RefundResult>("refund_patient_credit", { request });
+  };
+
   return {
     createInvoice,
     getInvoice,
@@ -41,5 +65,10 @@ export function useBilling() {
     getPatientBalance,
     getRevenueReport,
     exportInvoicePdf,
+    addPatientCredit,
+    getPatientCredit,
+    listCreditMovements,
+    applyCreditToInvoice,
+    refundPatientCredit,
   };
 }

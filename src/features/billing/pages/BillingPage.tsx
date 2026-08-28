@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Receipt, Filter, TrendingUp, DollarSign, Clock } from "lucide-react";
+import { Receipt, Filter, TrendingUp, DollarSign, Clock, PiggyBank, Wallet, Undo2, Percent } from "lucide-react";
 import { Button, Badge } from "@shared/components/ui";
 import { useToast } from "@shared/components/ui";
 import { useBilling } from "../hooks/useBilling";
@@ -77,6 +77,47 @@ export default function BillingPage() {
               </div>
               <p className="mt-2 text-2xl font-bold text-red-700">{formatMoney(report.pending)}</p>
             </div>
+          </div>
+
+          {/* Saldo a favor / anticipos */}
+          <div>
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <Wallet size={16} className="text-blue-600" />
+              Movimientos de saldo a favor
+            </h3>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div className="flex items-center gap-2 text-blue-600">
+                  <PiggyBank size={14} />
+                  <span className="text-xs">Anticipos recibidos</span>
+                </div>
+                <p className="mt-1 text-xl font-bold text-blue-700">{formatMoney(report.credit_deposits)}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="flex items-center gap-2 text-gray-500">
+                  <DollarSign size={14} />
+                  <span className="text-xs">Aplicado a facturas</span>
+                </div>
+                <p className="mt-1 text-xl font-bold text-gray-800">{formatMoney(report.credit_applied)}</p>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-center gap-2 text-amber-600">
+                  <Undo2 size={14} />
+                  <span className="text-xs">Devoluciones</span>
+                </div>
+                <p className="mt-1 text-xl font-bold text-amber-700">{formatMoney(report.credit_refunds)}</p>
+              </div>
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                <div className="flex items-center gap-2 text-green-600">
+                  <Percent size={14} />
+                  <span className="text-xs">Retenciones (ingreso)</span>
+                </div>
+                <p className="mt-1 text-xl font-bold text-green-700">{formatMoney(report.credit_penalties)}</p>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-400">
+              Los anticipos son dinero recibido que aún no se factura. "Aplicado a facturas" ya está contado en el total cobrado.
+            </p>
           </div>
 
           {/* Invoice list */}

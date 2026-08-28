@@ -58,6 +58,8 @@ pub struct PatientBalance {
     pub total_paid: f64,
     pub balance_due: f64,
     pub invoice_count: i64,
+    /// Saldo a favor disponible (anticipos no aplicados).
+    pub available_credit: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,4 +94,77 @@ pub const PAYMENT_METHODS: &[(&str, &str)] = &[
     ("transferencia", "Transferencia"),
     ("tarjeta", "Tarjeta"),
     ("otro", "Otro"),
+];
+
+// ===== Patient credits (saldo a favor / anticipos) =====
+
+/// Saldo a favor disponible de un paciente (bolsa general).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PatientCredit {
+    pub patient_id: i64,
+    pub balance: f64,
+    pub updated_at: String,
+}
+
+/// Un movimiento del saldo a favor (historial inmutable).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreditMovement {
+    pub id: i64,
+    pub patient_id: i64,
+    pub movement_type: String, // deposit, apply, refund, penalty
+    pub amount: f64,
+    pub invoice_id: Option<i64>,
+    pub invoice_number: Option<String>,
+    pub payment_method: Option<String>,
+    pub reference: Option<String>,
+    pub notes: Option<String>,
+    pub created_by: i64,
+    pub created_by_name: Option<String>,
+    pub created_at: String,
+}
+
+/// Registrar un abono/anticipo del paciente (entra dinero, sin factura).
+#[derive(Debug, Deserialize)]
+pub struct AddCreditRequest {
+    pub patient_id: i64,
+    pub amount: f64,
+    pub payment_method: String,
+    pub reference: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// Aplicar saldo a favor a una factura existente.
+#[derive(Debug, Deserialize)]
+pub struct ApplyCreditRequest {
+    pub patient_id: i64,
+    pub invoice_id: i64,
+    pub amount: f64,
+    pub notes: Option<String>,
+}
+
+/// Devolver el saldo a favor al paciente (se retira el 100%, se entrega el 80%).
+#[derive(Debug, Deserialize)]
+pub struct RefundCreditRequest {
+    pub patient_id: i64,
+    pub payment_method: String,
+    pub reference: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// Resultado de una devolución: cuánto se retiró, se entregó y se retuvo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefundResult {
+    pub total_withdrawn: f64,
+    pub refunded_amount: f64,
+    pub penalty_amount: f64,
+}
+
+/// Porcentaje que se retiene al devolver un saldo a favor.
+pub const REFUND_PENALTY_RATE: f64 = 0.20;
+
+pub const CREDIT_MOVEMENT_TYPES: &[(&str, &str)] = &[
+    ("deposit", "Abono"),
+    ("apply", "Aplicado a factura"),
+    ("refund", "Devolución"),
+    ("penalty", "Penalización (20%)"),
 ];

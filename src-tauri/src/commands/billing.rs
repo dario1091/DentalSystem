@@ -1,6 +1,7 @@
 use tauri::State;
 
 use crate::db::repositories::billing_repo;
+use crate::db::repositories::credits_repo;
 use crate::db::Database;
 use crate::models::billing::{
     AddPaymentRequest, CreateInvoiceRequest, Invoice, InvoiceDetail, PatientBalance, Payment,
@@ -107,6 +108,11 @@ pub struct RevenueReport {
     pub total_paid: f64,
     pub pending: f64,
     pub invoices: Vec<Invoice>,
+    // Movimientos de saldo a favor (anticipos) en el mismo rango.
+    pub credit_deposits: f64,   // anticipos recibidos
+    pub credit_applied: f64,    // saldo aplicado a facturas
+    pub credit_refunds: f64,    // devoluciones entregadas (80%)
+    pub credit_penalties: f64,  // penalizaciones retenidas (20%, ingreso)
 }
 
 #[tauri::command]
@@ -122,7 +128,19 @@ pub fn get_revenue_report(
     let (total_invoiced, total_paid, pending, invoices) =
         billing_repo::revenue_report(&conn, from_date.as_deref(), to_date.as_deref())?;
 
-    Ok(RevenueReport { total_invoiced, total_paid, pending, invoices })
+    let (credit_deposits, credit_applied, credit_refunds, credit_penalties) =
+        credits_repo::credit_report(&conn, from_date.as_deref(), to_date.as_deref())?;
+
+    Ok(RevenueReport {
+        total_invoiced,
+        total_paid,
+        pending,
+        invoices,
+        credit_deposits,
+        credit_applied,
+        credit_refunds,
+        credit_penalties,
+    })
 }
 
 #[tauri::command]

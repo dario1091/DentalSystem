@@ -4,6 +4,7 @@ pub mod backup;
 pub mod billing;
 pub mod clinical_history;
 pub mod consents;
+pub mod credits;
 pub mod doctors;
 pub mod documents;
 pub mod odontogram;

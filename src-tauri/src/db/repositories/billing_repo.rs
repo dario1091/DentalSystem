@@ -288,7 +288,7 @@ pub fn list_by_patient(conn: &Connection, patient_id: i64) -> Result<Vec<Invoice
 }
 
 pub fn get_patient_balance(conn: &Connection, patient_id: i64) -> Result<PatientBalance, String> {
-    let result = conn.query_row(
+    let mut result = conn.query_row(
         "SELECT COALESCE(SUM(total), 0), COALESCE(SUM(amount_paid), 0), COUNT(*)
          FROM invoices WHERE patient_id = ?1 AND status != 'cancelled'",
         params![patient_id],
@@ -302,10 +302,20 @@ pub fn get_patient_balance(conn: &Connection, patient_id: i64) -> Result<Patient
                 total_paid,
                 balance_due: total_invoiced - total_paid,
                 invoice_count: count,
+                available_credit: 0.0,
             })
         },
     )
     .map_err(|e| e.to_string())?;
+
+    // Saldo a favor disponible (anticipos no aplicados).
+    result.available_credit = conn
+        .query_row(
+            "SELECT balance FROM patient_credits WHERE patient_id = ?1",
+            params![patient_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0.0);
 
     Ok(result)
 }
