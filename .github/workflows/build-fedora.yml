@@ -1,0 +1,71 @@
+name: Build Tauri (Fedora / RPM)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-fedora:
+    runs-on: ubuntu-latest
+    # Build inside a real Fedora container so the generated .rpm links against
+    # Fedora's glibc/webkit versions and is installable on Fedora out of the box.
+    container:
+      image: fedora:41
+
+    steps:
+      - name: Install system dependencies (Fedora / Tauri v2)
+        run: |
+          dnf -y update
+          dnf -y install \
+            webkit2gtk4.1-devel \
+            openssl-devel \
+            curl \
+            wget \
+            file \
+            libappindicator-gtk3-devel \
+            librsvg2-devel \
+            gtk3-devel \
+            libxdo-devel \
+            rpm-build \
+            @development-tools \
+            git
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app (RPM + AppImage)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --bundles rpm
+
+      - name: Upload Fedora artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dental-system-fedora-rpm
+          path: |
+            src-tauri/target/release/bundle/rpm/*.rpm
+          retention-days: 14

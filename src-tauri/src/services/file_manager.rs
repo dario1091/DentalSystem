@@ -94,12 +94,21 @@ pub fn get_available_space(path: &Path) -> Result<u64, String> {
     #[cfg(not(target_os = "windows"))]
     {
         use std::process::Command;
+        // `-P` forces POSIX output (one logical row per filesystem, never wrapped
+        // onto two physical lines even when the device name is long — which does
+        // happen on Fedora/Linux). `-k` reports sizes in 1024-byte blocks.
         let output = Command::new("df")
-            .args(["-k", &path.to_string_lossy()])
+            .args(["-Pk", &path.to_string_lossy()])
             .output()
             .map_err(|e| e.to_string())?;
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let line = stdout.lines().nth(1).ok_or("No disk info")?;
+        // The data row is the last non-empty line. Columns (POSIX):
+        // Filesystem 1024-blocks Used Available Capacity Mounted-on
+        let line = stdout
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .next_back()
+            .ok_or("No disk info")?;
         let available_kb: u64 = line
             .split_whitespace()
             .nth(3)
