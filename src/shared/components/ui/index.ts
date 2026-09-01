@@ -6,3 +6,4 @@ export { Table } from "./Table";
 export type { Column } from "./Table";
 export { Badge } from "./Badge";
 export { ToastProvider, useToast } from "./Toast";
+export { ConfirmProvider, useConfirm } from "./Confirm";

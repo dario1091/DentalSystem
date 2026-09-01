@@ -11,7 +11,7 @@ import {
   File,
 } from "lucide-react";
 import { Button, Badge, Modal } from "@shared/components/ui";
-import { useToast } from "@shared/components/ui";
+import { useToast, useConfirm } from "@shared/components/ui";
 import { useDocuments } from "../hooks/useDocuments";
 import type { Document } from "../types";
 import { DOCUMENT_TYPES, ALLOWED_EXTENSIONS, MAX_FILE_SIZE } from "../types";
@@ -25,6 +25,7 @@ type ViewMode = "grid" | "list";
 
 export default function DocumentGallery({ patientId, onViewDocument }: DocumentGalleryProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { uploadDocument, listDocuments, deleteDocument } = useDocuments();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,7 +107,13 @@ export default function DocumentGallery({ patientId, onViewDocument }: DocumentG
   };
 
   const handleDelete = async (doc: Document) => {
-    if (!confirm(`¿Eliminar "${doc.original_name}"?`)) return;
+    const ok = await confirm({
+      title: "Eliminar documento",
+      message: `¿Eliminar "${doc.original_name}"?`,
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteDocument(doc.id);
       toast("success", "Documento eliminado.");

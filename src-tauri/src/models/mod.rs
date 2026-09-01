@@ -7,4 +7,5 @@ pub mod document;
 pub mod odontogram;
 pub mod patient;
 pub mod procedure;
+pub mod rewards;
 pub mod user;

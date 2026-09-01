@@ -16,6 +16,7 @@ import AppointmentCalendarPage from "@features/appointments/pages/AppointmentCal
 import ProcedureListPage from "@features/procedures/pages/ProcedureListPage";
 import ConsentListPage from "@features/consents/pages/ConsentListPage";
 import BillingPage from "@features/billing/pages/BillingPage";
+import RewardsPage from "@features/rewards/pages/RewardsPage";
 import SettingsPage from "@features/settings/pages/SettingsPage";
 import UsersListPage from "@features/auth/pages/UsersListPage";
 
@@ -138,6 +139,7 @@ function App() {
           <Route path="procedures" element={<ProcedureListPage />} />
           <Route path="consents" element={<ConsentListPage />} />
           <Route path="billing" element={<BillingPage />} />
+          <Route path="rewards" element={<RewardsPage />} />
           <Route path="settings" element={<ProtectedRoute allowedRoles={["master"]}><SettingsPage /></ProtectedRoute>} />
           <Route path="users" element={<ProtectedRoute allowedRoles={["master"]}><UsersListPage /></ProtectedRoute>} />
         </Route>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Clock, User, Stethoscope, FileText, Trash2 } from "lucide-react";
 import { Modal, Button, Badge } from "@shared/components/ui";
-import { useToast } from "@shared/components/ui";
+import { useToast, useConfirm } from "@shared/components/ui";
 import { useAppointments } from "../hooks/useAppointments";
 import type { Appointment, AppointmentProcedure, AppointmentStatus } from "../types";
 import { STATUS_CONFIG, VALID_TRANSITIONS, formatTime, formatDate } from "../types";
@@ -21,6 +21,7 @@ export default function AppointmentDetailModal({
   onUpdated,
 }: AppointmentDetailModalProps) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { getAppointment, changeStatus, getAppointmentProcedures, removeProcedure } =
     useAppointments();
 
@@ -69,7 +70,13 @@ export default function AppointmentDetailModal({
   };
 
   const handleRemoveProcedure = async (proc: AppointmentProcedure) => {
-    if (!confirm(`¿Eliminar "${proc.procedure_name}" de esta cita?`)) return;
+    const ok = await confirm({
+      title: "Eliminar procedimiento",
+      message: `¿Eliminar "${proc.procedure_name}" de esta cita?`,
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await removeProcedure({
         appointment_procedure_id: proc.id,

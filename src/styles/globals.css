@@ -26,3 +26,14 @@ body {
   color-scheme: dark;
 }
 
+
+/* Luces (bombillas) del aro de la ruleta de premios */
+@keyframes wheelBulbBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.wheel-bulb {
+  animation-name: wheelBulbBlink;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}

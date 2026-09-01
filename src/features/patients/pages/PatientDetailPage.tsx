@@ -13,9 +13,10 @@ import {
   FolderOpen,
   Receipt,
   Download,
+  Gift,
 } from "lucide-react";
 import { Button, Badge } from "@shared/components/ui";
-import { useToast } from "@shared/components/ui";
+import { useToast, useConfirm } from "@shared/components/ui";
 import { usePatients } from "../hooks/usePatients";
 import { invoke } from "@tauri-apps/api/core";
 import type { Patient } from "../types";
@@ -25,14 +26,16 @@ import ClinicalHistoryTab from "@features/clinical-history/components/ClinicalHi
 import DocumentsTab from "@features/documents/components/DocumentsTab";
 import ConsentsTab from "@features/consents/components/ConsentsTab";
 import BillingTab from "@features/billing/components/BillingTab";
+import PrizesTab from "@features/rewards/components/PrizesTab";
 
-type Tab = "general" | "odontogram" | "history" | "documents" | "consents" | "billing";
+type Tab = "general" | "odontogram" | "history" | "documents" | "consents" | "billing" | "prizes";
 
 export default function PatientDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { getPatient, deactivatePatient } = usePatients();
 
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -51,7 +54,13 @@ export default function PatientDetailPage() {
 
   const handleDeactivate = async () => {
     if (!patient) return;
-    if (!confirm(`¿Está seguro de desactivar a ${patient.first_name} ${patient.last_name}?`)) return;
+    const ok = await confirm({
+      title: "Desactivar paciente",
+      message: `¿Está seguro de desactivar a ${patient.first_name} ${patient.last_name}?`,
+      confirmLabel: "Desactivar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deactivatePatient(patient.id);
       toast("success", "Paciente desactivado.");
@@ -80,6 +89,7 @@ export default function PatientDetailPage() {
     { key: "documents", label: "Documentos", icon: <FolderOpen size={16} /> },
     { key: "consents", label: "Consentimientos", icon: <FileText size={16} /> },
     { key: "billing", label: "Cuenta", icon: <Receipt size={16} /> },
+    { key: "prizes", label: "Premios", icon: <Gift size={16} /> },
   ];
 
   return (
@@ -178,6 +188,7 @@ export default function PatientDetailPage() {
         {activeTab === "documents" && <DocumentsTab patientId={patient.id} />}
         {activeTab === "consents" && <ConsentsTab patientId={patient.id} />}
         {activeTab === "billing" && <BillingTab patientId={patient.id} />}
+        {activeTab === "prizes" && <PrizesTab patientId={patient.id} />}
       </div>
     </div>
   );

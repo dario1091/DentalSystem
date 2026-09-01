@@ -10,4 +10,5 @@ pub mod documents;
 pub mod odontogram;
 pub mod patients;
 pub mod procedures;
+pub mod rewards;
 pub mod trial;

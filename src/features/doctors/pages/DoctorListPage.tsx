@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Plus, Edit, UserX } from "lucide-react";
 import { Button, Badge, Table, type Column } from "@shared/components/ui";
-import { useToast } from "@shared/components/ui";
+import { useToast, useConfirm } from "@shared/components/ui";
 import { useDoctors } from "../hooks/useDoctors";
 import type { DoctorSummary } from "../types";
 import DoctorFormModal from "../components/DoctorFormModal";
 
 export default function DoctorListPage() {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { listDoctors, deactivateDoctor } = useDoctors();
 
   const [doctors, setDoctors] = useState<DoctorSummary[]>([]);
@@ -31,7 +32,13 @@ export default function DoctorListPage() {
   }, []);
 
   const handleDeactivate = async (doctor: DoctorSummary) => {
-    if (!confirm(`¿Desactivar a Dr. ${doctor.first_name} ${doctor.last_name}?`)) return;
+    const ok = await confirm({
+      title: "Desactivar doctor",
+      message: `¿Desactivar a Dr. ${doctor.first_name} ${doctor.last_name}?`,
+      confirmLabel: "Desactivar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deactivateDoctor(doctor.id);
       toast("success", "Doctor desactivado.");

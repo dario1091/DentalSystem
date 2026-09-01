@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Settings, Save, Download, Upload, Clock, AlertTriangle } from "lucide-react";
 import { Button, Badge } from "@shared/components/ui";
-import { useToast } from "@shared/components/ui";
+import { useToast, useConfirm } from "@shared/components/ui";
 
 interface BackupInfo {
   file_name: string;
@@ -13,6 +13,7 @@ interface BackupInfo {
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,8 +70,18 @@ export default function SettingsPage() {
   };
 
   const handleRestore = async (path: string) => {
-    if (!confirm("⚠️ ADVERTENCIA: Restaurar un backup reemplazará TODOS los datos actuales. ¿Está seguro?")) return;
-    if (!confirm("Esta acción NO se puede deshacer. ¿Confirma la restauración?")) return;
+    const ok = await confirm({
+      title: "Restaurar backup",
+      message: (
+        <span>
+          Restaurar este backup <strong>reemplazará TODOS los datos actuales</strong> y la aplicación
+          se reiniciará. Esta acción no se puede deshacer. ¿Confirma la restauración?
+        </span>
+      ),
+      confirmLabel: "Sí, restaurar",
+      danger: true,
+    });
+    if (!ok) return;
 
     try {
       const msg = await invoke<string>("restore_backup", { zipPath: path });

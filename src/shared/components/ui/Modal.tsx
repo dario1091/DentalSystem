@@ -59,10 +59,10 @@ export function Modal({
       aria-labelledby={title ? "modal-title" : undefined}
     >
       <div
-        className={`w-full ${sizeStyles[size]} rounded-xl bg-white shadow-xl`}
+        className={`flex max-h-[90vh] w-full flex-col ${sizeStyles[size]} rounded-xl bg-white shadow-xl`}
       >
         {title && (
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
             <h3 id="modal-title" className="text-lg font-semibold text-gray-900">
               {title}
             </h3>
@@ -75,9 +75,9 @@ export function Modal({
             </button>
           </div>
         )}
-        <div className="px-6 py-4">{children}</div>
+        <div className="overflow-y-auto px-6 py-4">{children}</div>
         {footer && (
-          <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
             {footer}
           </div>
         )}

@@ -81,6 +81,11 @@ impl MigrationRunner {
                     name: "patient_credits",
                     sql: include_str!("v013_patient_credits.sql"),
                 },
+                Migration {
+                    version: 14,
+                    name: "prizes",
+                    sql: include_str!("v014_prizes.sql"),
+                },
             ],
         }
     }

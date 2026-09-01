@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Edit, DollarSign, XCircle, Search } from "lucide-react";
 import { Button, Badge, Table, Input, Select, type Column } from "@shared/components/ui";
-import { useToast } from "@shared/components/ui";
+import { useToast, useConfirm } from "@shared/components/ui";
 import { useProcedures } from "../hooks/useProcedures";
 import { PROCEDURE_CATEGORIES, formatCurrency, type ProcedureSummary } from "../types";
 import ProcedureFormModal from "../components/ProcedureFormModal";
@@ -9,6 +9,7 @@ import PriceUpdateModal from "../components/PriceUpdateModal";
 
 export default function ProcedureListPage() {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { listProcedures, searchProcedures, deactivateProcedure } = useProcedures();
 
   const [procedures, setProcedures] = useState<ProcedureSummary[]>([]);
@@ -56,7 +57,13 @@ export default function ProcedureListPage() {
   }, [searchQuery]);
 
   const handleDeactivate = async (proc: ProcedureSummary) => {
-    if (!confirm(`¿Desactivar "${proc.name}"? No aparecerá en nuevas citas.`)) return;
+    const ok = await confirm({
+      title: "Desactivar procedimiento",
+      message: `¿Desactivar "${proc.name}"? No aparecerá en nuevas citas.`,
+      confirmLabel: "Desactivar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deactivateProcedure(proc.id);
       toast("success", "Procedimiento desactivado.");

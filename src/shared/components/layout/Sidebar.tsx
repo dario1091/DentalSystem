@@ -8,6 +8,7 @@ import {
   Settings,
   ShieldCheck,
   UsersRound,
+  Gift,
 } from "lucide-react";
 import { useAuthStore } from "@store/auth-store";
 
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { to: "/procedures", label: "Procedimientos", icon: <ClipboardList size={20} /> },
   { to: "/consents", label: "Consentimientos", icon: <ShieldCheck size={20} /> },
   { to: "/billing", label: "Facturación", icon: <Receipt size={20} /> },
+  { to: "/rewards", label: "Ruleta de Premios", icon: <Gift size={20} /> },
   { to: "/users", label: "Usuarios", icon: <UsersRound size={20} />, masterOnly: true },
   { to: "/settings", label: "Configuración", icon: <Settings size={20} /> },
 ];
