@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Settings, Save, Download, Upload, Clock, AlertTriangle } from "lucide-react";
 import { Button, Badge } from "@shared/components/ui";
 import { useToast, useConfirm } from "@shared/components/ui";
+import GoogleCalendarSection from "../components/GoogleCalendarSection";
 
 interface BackupInfo {
   file_name: string;
@@ -136,6 +137,9 @@ export default function SettingsPage() {
         <Field label="Timeout de sesión (minutos)" value={settings.session_timeout_minutes || "30"} onChange={(v) => updateSetting("session_timeout_minutes", v)} type="number" />
         <Field label="Intentos máximos de login" value={settings.max_login_attempts || "5"} onChange={(v) => updateSetting("max_login_attempts", v)} type="number" />
       </Section>
+
+      {/* Integraciones */}
+      <GoogleCalendarSection />
 
       {/* Backup */}
       <Section title="Backup">

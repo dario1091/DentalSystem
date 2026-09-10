@@ -73,6 +73,7 @@ pub struct Appointment {
     pub created_by: i64,
     pub created_at: String,
     pub updated_at: String,
+    pub google_event_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -11,6 +11,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
@@ -142,6 +143,11 @@ pub fn run() {
             commands::trial::activate_license,
             commands::trial::is_licensed,
             commands::trial::dev_generate_license,
+            commands::google_calendar::google_auth_start,
+            commands::google_calendar::google_set_config,
+            commands::google_calendar::google_auth_status,
+            commands::google_calendar::google_disconnect,
+            commands::google_calendar::google_sync_appointment,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

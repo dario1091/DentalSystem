@@ -37,7 +37,8 @@ pub fn get_by_id(conn: &Connection, id: i64) -> Result<Appointment, String> {
         "SELECT a.id, a.patient_id, (p.first_name || ' ' || p.last_name) as patient_name,
                 a.doctor_id, ('Dr. ' || d.first_name || ' ' || d.last_name) as doctor_name,
                 a.start_time, a.end_time, a.status, a.reason, a.notes,
-                a.total_amount, a.status_changed_at, a.created_by, a.created_at, a.updated_at
+                a.total_amount, a.status_changed_at, a.created_by, a.created_at, a.updated_at,
+                a.google_event_id
          FROM appointments a
          LEFT JOIN patients p ON p.id = a.patient_id
          LEFT JOIN doctors d ON d.id = a.doctor_id
@@ -60,6 +61,7 @@ pub fn get_by_id(conn: &Connection, id: i64) -> Result<Appointment, String> {
                 created_by: row.get(12)?,
                 created_at: row.get(13)?,
                 updated_at: row.get(14)?,
+                google_event_id: row.get(15)?,
             })
         },
     )
@@ -119,6 +121,21 @@ pub fn update(conn: &Connection, req: &UpdateAppointmentRequest) -> Result<Appoi
         .map_err(|e| format!("Error al actualizar cita: {}", e))?;
 
     get_by_id(conn, req.id)
+}
+
+/// Store (or clear) the Google Calendar event id linked to an appointment.
+/// Does not touch updated_at to avoid triggering re-sync loops.
+pub fn set_google_event_id(
+    conn: &Connection,
+    appointment_id: i64,
+    google_event_id: Option<&str>,
+) -> Result<(), String> {
+    conn.execute(
+        "UPDATE appointments SET google_event_id = ?1 WHERE id = ?2",
+        params![google_event_id, appointment_id],
+    )
+    .map_err(|e| format!("Error al guardar google_event_id: {}", e))?;
+    Ok(())
 }
 
 pub fn change_status(

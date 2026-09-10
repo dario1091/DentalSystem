@@ -27,7 +27,12 @@ pub fn create_appointment(
     let appointment = appointment_repo::create(&conn, &request, user.id)?;
 
     log_audit(&conn, user.id, "create_appointment", appointment.id);
-    Ok(appointment)
+
+    // Best-effort push to Google Calendar (never breaks the local operation).
+    crate::commands::google_calendar::sync_appointment_best_effort(&conn, appointment.id);
+
+    // Re-read so the response includes the stored google_event_id.
+    appointment_repo::get_by_id(&conn, appointment.id)
 }
 
 #[tauri::command]
@@ -56,7 +61,10 @@ pub fn update_appointment(
     let appointment = appointment_repo::update(&conn, &request)?;
 
     log_audit(&conn, user.id, "update_appointment", appointment.id);
-    Ok(appointment)
+
+    crate::commands::google_calendar::sync_appointment_best_effort(&conn, appointment.id);
+
+    appointment_repo::get_by_id(&conn, appointment.id)
 }
 
 #[tauri::command]
@@ -121,7 +129,11 @@ pub fn change_appointment_status(
         appointment_repo::change_status(&conn, request.appointment_id, new_status.as_str())?;
 
     log_audit(&conn, user.id, "change_appointment_status", appointment.id);
-    Ok(appointment)
+
+    // On cancel/no_show this removes the Google event; otherwise it updates it.
+    crate::commands::google_calendar::sync_appointment_best_effort(&conn, appointment.id);
+
+    appointment_repo::get_by_id(&conn, appointment.id)
 }
 
 #[tauri::command]

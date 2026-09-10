@@ -7,6 +7,7 @@ pub mod consents;
 pub mod credits;
 pub mod doctors;
 pub mod documents;
+pub mod google_calendar;
 pub mod odontogram;
 pub mod patients;
 pub mod procedures;

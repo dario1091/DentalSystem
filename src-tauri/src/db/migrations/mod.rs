@@ -86,6 +86,11 @@ impl MigrationRunner {
                     name: "prizes",
                     sql: include_str!("v014_prizes.sql"),
                 },
+                Migration {
+                    version: 15,
+                    name: "google_calendar",
+                    sql: include_str!("v015_google_calendar.sql"),
+                },
             ],
         }
     }
