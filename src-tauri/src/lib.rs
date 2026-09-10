@@ -148,6 +148,7 @@ pub fn run() {
             commands::google_calendar::google_auth_status,
             commands::google_calendar::google_disconnect,
             commands::google_calendar::google_sync_appointment,
+            commands::google_calendar::google_list_external_events,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

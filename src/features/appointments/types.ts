@@ -4,7 +4,8 @@ export type AppointmentStatus =
   | "in_progress"
   | "completed"
   | "cancelled"
-  | "no_show";
+  | "no_show"
+  | "external";
 
 export interface Appointment {
   id: number;
@@ -141,6 +142,12 @@ export const STATUS_CONFIG: Record<
     bgColor: "bg-gray-100 border-gray-300",
     dotColor: "bg-gray-500",
   },
+  external: {
+    label: "WhatsApp / Externo",
+    color: "text-emerald-700",
+    bgColor: "bg-emerald-100 border-emerald-400",
+    dotColor: "bg-emerald-500",
+  },
 };
 
 // Valid state transitions map
@@ -151,6 +158,7 @@ export const VALID_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> =
   completed: [],
   cancelled: [],
   no_show: [],
+  external: [],
 };
 
 // Helper functions

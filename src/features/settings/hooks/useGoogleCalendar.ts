@@ -50,5 +50,28 @@ export function useGoogleCalendar() {
     return invoke<void>("google_sync_appointment", { appointmentId });
   };
 
-  return { getStatus, saveConfig, connect, disconnect, syncAppointment };
+  /**
+   * List Google Calendar events in a range, flagged as external or not.
+   * Dates MUST be RFC3339 UTC instants (use Date.toISOString()).
+   * Returns [] when not connected.
+   */
+  const listExternalEvents = async (
+    dateFromISO: string,
+    dateToISO: string,
+  ): Promise<GoogleEvent[]> => {
+    return invoke<GoogleEvent[]>("google_list_external_events", {
+      dateFrom: dateFromISO,
+      dateTo: dateToISO,
+    });
+  };
+
+  return { getStatus, saveConfig, connect, disconnect, syncAppointment, listExternalEvents };
+}
+
+export interface GoogleEvent {
+  google_event_id: string;
+  summary: string;
+  start_time: string;
+  end_time: string;
+  is_external: boolean;
 }

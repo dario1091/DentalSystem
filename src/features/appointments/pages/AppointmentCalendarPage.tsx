@@ -5,9 +5,11 @@ import {
   Plus,
   List,
 } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@shared/components/ui";
 import { useToast } from "@shared/components/ui";
 import { useAppointments } from "../hooks/useAppointments";
+import { useGoogleCalendar } from "@features/settings/hooks/useGoogleCalendar";
 import type { AppointmentSummary, CalendarView } from "../types";
 import {
   formatDateFull,
@@ -27,11 +29,14 @@ import AppointmentListView from "../components/AppointmentListView";
 export default function AppointmentCalendarPage() {
   const { toast } = useToast();
   const { listAppointments } = useAppointments();
+  const { listExternalEvents } = useGoogleCalendar();
 
   const [view, setView] = useState<CalendarView>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [appointments, setAppointments] = useState<AppointmentSummary[]>([]);
+  const [externalEvents, setExternalEvents] = useState<AppointmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [showListView, setShowListView] = useState(false);
 
   // Modals
@@ -79,9 +84,54 @@ export default function AppointmentCalendarPage() {
     }
   }, [getDateRange]);
 
+  // Pull external (e.g. WhatsApp-created) events from Google for the visible
+  // range and expose them as synthetic "external" appointments (negative ids).
+  const syncGoogle = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      try {
+        setSyncing(true);
+        const range = getDateRange();
+        // Google requires RFC3339 UTC instants for the range bounds.
+        const fromISO = new Date(range.from).toISOString();
+        const toISO = new Date(range.to).toISOString();
+        const events = await listExternalEvents(fromISO, toISO);
+
+        const external: AppointmentSummary[] = events
+          .filter((e) => e.is_external)
+          .map((e, idx) => ({
+            id: -1 * (idx + 1), // negative id => synthetic, not a DB row
+            patient_name: e.summary || "Evento externo",
+            doctor_name: "",
+            start_time: e.start_time,
+            end_time: e.end_time,
+            status: "external",
+            reason: null,
+            total_amount: 0,
+          }));
+        setExternalEvents(external);
+        if (!opts?.silent && external.length > 0) {
+          toast("success", `${external.length} evento(s) externo(s) sincronizado(s).`);
+        }
+      } catch (err) {
+        if (!opts?.silent) toast("error", String(err));
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [getDateRange, listExternalEvents, toast],
+  );
+
   useEffect(() => {
     fetchAppointments();
   }, [fetchAppointments]);
+
+  // Auto-pull external events whenever the visible range changes (silent).
+  useEffect(() => {
+    syncGoogle({ silent: true });
+  }, [syncGoogle]);
+
+  // Combined list handed to the calendar views: real appointments + externals.
+  const allEvents = [...appointments, ...externalEvents];
 
   const navigate = (direction: number) => {
     const d = new Date(currentDate);
@@ -114,6 +164,11 @@ export default function AppointmentCalendarPage() {
   };
 
   const handleAppointmentClick = (appt: AppointmentSummary) => {
+    // External (synthetic) events have negative ids and no DB record.
+    if (appt.id < 0) {
+      toast("info", "Evento externo (creado fuera de la app, p. ej. WhatsApp). No editable aquí.");
+      return;
+    }
     setDetailId(appt.id);
   };
 
@@ -176,6 +231,15 @@ export default function AppointmentCalendarPage() {
               </button>
             ))}
           </div>
+          <Button
+            size="sm"
+            icon={<RefreshCw size={14} className={syncing ? "animate-spin" : ""} />}
+            variant="secondary"
+            onClick={() => syncGoogle()}
+            disabled={syncing}
+          >
+            {syncing ? "Sincronizando..." : "Sincronizar"}
+          </Button>
           <Button size="sm" icon={<List size={14} />} variant="secondary" onClick={() => setShowListView(true)}>
             Lista
           </Button>
@@ -195,7 +259,7 @@ export default function AppointmentCalendarPage() {
           {view === "day" && (
             <DayView
               date={currentDate}
-              appointments={appointments}
+              appointments={allEvents}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
             />
@@ -203,7 +267,7 @@ export default function AppointmentCalendarPage() {
           {view === "week" && (
             <WeekView
               weekStart={startOfWeek(currentDate)}
-              appointments={appointments}
+              appointments={allEvents}
               onDayClick={handleDayClick}
               onAppointmentClick={handleAppointmentClick}
             />
@@ -212,7 +276,7 @@ export default function AppointmentCalendarPage() {
             <MonthView
               year={currentDate.getFullYear()}
               month={currentDate.getMonth()}
-              appointments={appointments}
+              appointments={allEvents}
               onDayClick={handleDayClick}
               onAppointmentClick={handleAppointmentClick}
             />
@@ -229,6 +293,7 @@ export default function AppointmentCalendarPage() {
           { label: "Completada", color: "bg-green-500" },
           { label: "Cancelada", color: "bg-red-500" },
           { label: "No asistió", color: "bg-gray-500" },
+          { label: "WhatsApp / Externo", color: "bg-emerald-500" },
         ].map((item) => (
           <div key={item.label} className="flex items-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${item.color}`} />

@@ -535,6 +535,106 @@ pub fn delete_event(conn: &Connection, event_id: &str) -> Result<(), String> {
     Err(format!("Google rechazó la eliminación del evento: {}", body))
 }
 
+/// A calendar event as surfaced to the app.
+#[derive(serde::Serialize)]
+pub struct ExternalEvent {
+    pub google_event_id: String,
+    pub summary: String,
+    pub start_time: String,
+    pub end_time: String,
+    /// True when this event was NOT created by this app (e.g. came from WhatsApp).
+    pub is_external: bool,
+}
+
+/// List events in [time_min, time_max] (RFC3339 or naive local datetime) and
+/// flag which ones are external (not linked to any local appointment).
+///
+/// Only timed events are returned (all-day events are skipped). Cancelled
+/// events are ignored.
+pub fn list_events(
+    conn: &Connection,
+    time_min: &str,
+    time_max: &str,
+) -> Result<Vec<ExternalEvent>, String> {
+    let token = valid_access_token(conn)?;
+    let cal = calendar_id(conn);
+    let tz = get_setting(conn, "google_calendar_timezone")
+        .unwrap_or_else(|| "America/Bogota".to_string());
+
+    // timeMin / timeMax must be RFC3339 WITH an offset (e.g. "...Z" or
+    // "...-05:00"). The frontend sends UTC instants ("...Z"), so we pass them
+    // through. The `timeZone` param only affects the timezone of returned
+    // all-day boundaries and is harmless here.
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .get(format!("{}/{}/events", CALENDAR_API, urlencoding::encode(&cal)))
+        .bearer_auth(&token)
+        .query(&[
+            ("timeMin", time_min),
+            ("timeMax", time_max),
+            ("singleEvents", "true"),
+            ("orderBy", "startTime"),
+            ("maxResults", "500"),
+            ("timeZone", tz.as_str()),
+        ])
+        .send()
+        .map_err(|e| format!("Error al listar eventos de Google: {}", e))?;
+
+    if !resp.status().is_success() {
+        let body = resp.text().unwrap_or_default();
+        return Err(format!("Google rechazó el listado de eventos: {}", body));
+    }
+
+    let list: EventsListResponse = resp
+        .json()
+        .map_err(|e| format!("Respuesta de eventos inválida: {}", e))?;
+
+    // Collect the set of google_event_ids that belong to local appointments so
+    // we can flag the rest as external.
+    let known = known_event_ids(conn)?;
+
+    let mut out = Vec::new();
+    for item in list.items {
+        // Skip cancelled and all-day events (all-day only has `date`, no `dateTime`).
+        if item.status.as_deref() == Some("cancelled") {
+            continue;
+        }
+        let (start, end) = match (item.start, item.end) {
+            (Some(s), Some(e)) => (s, e),
+            _ => continue,
+        };
+        let start_dt = match start.date_time {
+            Some(dt) => dt,
+            None => continue, // all-day
+        };
+        let end_dt = end.date_time.unwrap_or_else(|| start_dt.clone());
+
+        let is_external = !known.contains(&item.id);
+        out.push(ExternalEvent {
+            google_event_id: item.id,
+            summary: item.summary.unwrap_or_else(|| "(sin título)".to_string()),
+            start_time: start_dt,
+            end_time: end_dt,
+            is_external,
+        });
+    }
+
+    Ok(out)
+}
+
+/// Set of google_event_id values currently linked to local appointments.
+fn known_event_ids(conn: &Connection) -> Result<std::collections::HashSet<String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT google_event_id FROM appointments WHERE google_event_id IS NOT NULL AND google_event_id != ''")
+        .map_err(|e| e.to_string())?;
+    let ids = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(ids)
+}
+
 // ---------------------------------------------------------------------------
 // Wire types
 // ---------------------------------------------------------------------------
@@ -551,6 +651,31 @@ struct TokenResponse {
 #[derive(serde::Deserialize)]
 struct EventResponse {
     id: String,
+}
+
+#[derive(serde::Deserialize)]
+struct EventsListResponse {
+    #[serde(default)]
+    items: Vec<EventItem>,
+}
+
+#[derive(serde::Deserialize)]
+struct EventItem {
+    id: String,
+    #[serde(default)]
+    summary: Option<String>,
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    start: Option<EventDateTime>,
+    #[serde(default)]
+    end: Option<EventDateTime>,
+}
+
+#[derive(serde::Deserialize)]
+struct EventDateTime {
+    #[serde(rename = "dateTime", default)]
+    date_time: Option<String>,
 }
 
 #[derive(serde::Deserialize)]

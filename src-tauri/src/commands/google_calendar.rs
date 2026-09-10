@@ -5,7 +5,7 @@ use crate::db::repositories::appointment_repo;
 use crate::db::Database;
 use crate::models::appointment::AppointmentStatus;
 use crate::models::user::UserRole;
-use crate::services::google_calendar::{self, EventData, GoogleStatus};
+use crate::services::google_calendar::{self, EventData, ExternalEvent, GoogleStatus};
 use crate::services::session::SessionState;
 
 /// Start the OAuth flow. Opens the system browser and blocks until the user
@@ -94,6 +94,26 @@ pub fn google_disconnect(
     session.require_role(&UserRole::Master)?;
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     google_calendar::disconnect(&conn)
+}
+
+/// List Google Calendar events in a date range, flagging which ones are
+/// external (e.g. created via WhatsApp) so the UI can show them in green.
+/// `date_from` / `date_to` must be RFC3339 UTC instants (e.g. "...Z").
+#[tauri::command]
+pub fn google_list_external_events(
+    date_from: String,
+    date_to: String,
+    db: State<'_, Database>,
+    session: State<'_, SessionState>,
+) -> Result<Vec<ExternalEvent>, String> {
+    session.require_user()?;
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    if !google_calendar::is_enabled(&conn) {
+        // Not connected: return nothing instead of erroring so the calendar
+        // still works normally.
+        return Ok(Vec::new());
+    }
+    google_calendar::list_events(&conn, &date_from, &date_to)
 }
 
 /// Force-sync a single appointment to Google. Useful for a manual retry.
