@@ -86,6 +86,7 @@ pub fn run() {
             commands::odontogram::remove_finding,
             commands::odontogram::get_odontograms_by_patient,
             commands::odontogram::get_odontogram_detail,
+            commands::odontogram::export_odontogram_pdf,
             commands::clinical_history::create_clinical_history,
             commands::clinical_history::update_clinical_history,
             commands::clinical_history::get_clinical_history,
@@ -93,6 +94,8 @@ pub fn run() {
             commands::clinical_history::add_addendum,
             commands::clinical_history::update_evolution,
             commands::clinical_history::get_evolutions,
+            commands::clinical_history::export_clinical_history_pdf,
+            commands::clinical_history::search_cie10,
             commands::documents::upload_document,
             commands::documents::list_documents,
             commands::documents::get_document_data,
@@ -137,6 +140,7 @@ pub fn run() {
             commands::backup::get_settings,
             commands::backup::update_settings,
             commands::backup::save_clinic_logo,
+            commands::backup::get_clinic_logo,
             commands::backup::initial_setup,
             commands::backup::is_setup_completed,
             commands::trial::check_trial,
@@ -149,6 +153,13 @@ pub fn run() {
             commands::google_calendar::google_disconnect,
             commands::google_calendar::google_sync_appointment,
             commands::google_calendar::google_list_external_events,
+            commands::quotes::create_quote,
+            commands::quotes::get_quote,
+            commands::quotes::list_quotes_by_patient,
+            commands::quotes::update_quote_status,
+            commands::quotes::convert_quote_to_invoice,
+            commands::quotes::export_quote_pdf,
+            commands::quotes::quote_whatsapp_link,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

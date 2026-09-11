@@ -10,6 +10,7 @@ export interface ClinicalHistory {
   medications: string | null;
   clinical_exam: string | null;
   diagnosis: string | null;
+  cie10_code: string | null;
   treatment_plan: string | null;
   created_by: number;
   created_by_name: string | null;
@@ -92,4 +93,9 @@ export interface UpdateEvolutionRequest {
   objective?: string | null;
   analysis?: string | null;
   plan?: string | null;
+}
+
+export interface Cie10Code {
+  code: string;
+  description: string;
 }

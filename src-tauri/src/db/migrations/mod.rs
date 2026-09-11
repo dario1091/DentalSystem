@@ -91,6 +91,26 @@ impl MigrationRunner {
                     name: "google_calendar",
                     sql: include_str!("v015_google_calendar.sql"),
                 },
+                Migration {
+                    version: 16,
+                    name: "quotes",
+                    sql: include_str!("v016_quotes.sql"),
+                },
+                Migration {
+                    version: 17,
+                    name: "quote_odontogram_image",
+                    sql: include_str!("v017_quote_odontogram_image.sql"),
+                },
+                Migration {
+                    version: 18,
+                    name: "cie10",
+                    sql: include_str!("v018_cie10.sql"),
+                },
+                Migration {
+                    version: 19,
+                    name: "clinical_history_cie10",
+                    sql: include_str!("v019_clinical_history_cie10.sql"),
+                },
             ],
         }
     }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { FileText, Edit, Filter } from "lucide-react";
+import { FileText, Edit, Filter, Download } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { Button, Badge } from "@shared/components/ui";
 import { useToast } from "@shared/components/ui";
 import { useClinicalHistory } from "../hooks/useClinicalHistory";
@@ -49,6 +50,19 @@ export default function ClinicalHistoryTab({ patientId, appointmentId }: Clinica
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      await invoke<string>("export_clinical_history_pdf", { patientId });
+      toast("success", "Historia clínica exportada como PDF.");
+    } catch (err) {
+      toast("error", String(err));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -203,15 +217,33 @@ export default function ClinicalHistoryTab({ patientId, appointmentId }: Clinica
               <Badge variant="info">{history.evolutions_count} evoluciones</Badge>
             </p>
           </div>
-          <Button variant="secondary" size="sm" icon={<Edit size={14} />} onClick={() => setView("edit")}>
-            Editar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Download size={14} />}
+              onClick={handleExportPdf}
+              disabled={exporting}
+            >
+              {exporting ? "Generando..." : "Exportar PDF"}
+            </Button>
+            <Button variant="secondary" size="sm" icon={<Edit size={14} />} onClick={() => setView("edit")}>
+              Editar
+            </Button>
+          </div>
         </div>
 
         {/* Key fields summary */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <SummaryField label="Motivo de Consulta" value={history.chief_complaint} />
-          <SummaryField label="Diagnóstico (CIE-10)" value={history.diagnosis} />
+          <SummaryField
+            label="Diagnóstico"
+            value={
+              history.cie10_code
+                ? `[${history.cie10_code}] ${history.diagnosis ?? ""}`.trim()
+                : history.diagnosis
+            }
+          />
           <SummaryField label="Plan de Tratamiento" value={history.treatment_plan} />
           <SummaryField label="Alergias" value={history.allergies} highlight />
         </div>

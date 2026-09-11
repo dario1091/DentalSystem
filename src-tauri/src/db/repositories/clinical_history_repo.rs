@@ -1,9 +1,45 @@
 use rusqlite::{params, Connection};
 
 use crate::models::clinical_history::{
-    AddAddendumRequest, AddEvolutionRequest, ClinicalHistory, ClinicalHistoryDetail,
+    AddAddendumRequest, AddEvolutionRequest, Cie10Code, ClinicalHistory, ClinicalHistoryDetail,
     CreateClinicalHistoryRequest, Evolution, UpdateClinicalHistoryRequest, UpdateEvolutionRequest,
 };
+
+/// Search the CIE-10 dental catalog by code or description (max 30 results).
+pub fn search_cie10(conn: &Connection, query: &str) -> Result<Vec<Cie10Code>, String> {
+    let q = query.trim();
+    let (sql, like) = if q.is_empty() {
+        (
+            "SELECT code, description FROM cie10_codes ORDER BY code LIMIT 30".to_string(),
+            String::new(),
+        )
+    } else {
+        (
+            "SELECT code, description FROM cie10_codes
+             WHERE code LIKE ?1 OR description LIKE ?1
+             ORDER BY code LIMIT 30"
+                .to_string(),
+            format!("%{}%", q),
+        )
+    };
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let map = |row: &rusqlite::Row| {
+        Ok(Cie10Code {
+            code: row.get(0)?,
+            description: row.get(1)?,
+        })
+    };
+    let rows = if like.is_empty() {
+        stmt.query_map([], map)
+    } else {
+        stmt.query_map(params![like], map)
+    }
+    .map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+    Ok(rows)
+}
 
 pub fn create(
     conn: &Connection,
@@ -25,8 +61,8 @@ pub fn create(
 
     conn.execute(
         "INSERT INTO clinical_histories (patient_id, chief_complaint, present_illness, medical_history,
-         surgical_history, family_history, allergies, medications, clinical_exam, diagnosis, treatment_plan, created_by)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+         surgical_history, family_history, allergies, medications, clinical_exam, diagnosis, cie10_code, treatment_plan, created_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             req.patient_id,
             req.chief_complaint,
@@ -38,6 +74,7 @@ pub fn create(
             req.medications,
             req.clinical_exam,
             req.diagnosis,
+            req.cie10_code,
             req.treatment_plan,
             user_id,
         ],
@@ -63,6 +100,7 @@ pub fn update(
     let medications = req.medications.as_ref().or(current.medications.as_ref());
     let clinical_exam = req.clinical_exam.as_ref().or(current.clinical_exam.as_ref());
     let diagnosis = req.diagnosis.as_ref().or(current.diagnosis.as_ref());
+    let cie10_code = req.cie10_code.as_ref().or(current.cie10_code.as_ref());
     let treatment_plan = req.treatment_plan.as_ref().or(current.treatment_plan.as_ref());
 
     conn.execute(
@@ -70,8 +108,8 @@ pub fn update(
          chief_complaint = ?1, present_illness = ?2, medical_history = ?3,
          surgical_history = ?4, family_history = ?5, allergies = ?6,
          medications = ?7, clinical_exam = ?8, diagnosis = ?9,
-         treatment_plan = ?10, updated_at = datetime('now', 'localtime')
-         WHERE id = ?11",
+         cie10_code = ?10, treatment_plan = ?11, updated_at = datetime('now', 'localtime')
+         WHERE id = ?12",
         params![
             chief_complaint,
             present_illness,
@@ -82,6 +120,7 @@ pub fn update(
             medications,
             clinical_exam,
             diagnosis,
+            cie10_code,
             treatment_plan,
             req.id,
         ],
@@ -96,7 +135,7 @@ pub fn get_by_id(conn: &Connection, id: i64) -> Result<ClinicalHistory, String> 
         "SELECT ch.id, ch.patient_id, ch.chief_complaint, ch.present_illness,
                 ch.medical_history, ch.surgical_history, ch.family_history,
                 ch.allergies, ch.medications, ch.clinical_exam, ch.diagnosis,
-                ch.treatment_plan, ch.created_by, u.display_name, ch.created_at, ch.updated_at,
+                ch.cie10_code, ch.treatment_plan, ch.created_by, u.display_name, ch.created_at, ch.updated_at,
                 (SELECT COUNT(*) FROM evolutions WHERE clinical_history_id = ch.id) as evolutions_count
          FROM clinical_histories ch
          LEFT JOIN users u ON u.id = ch.created_by
@@ -115,12 +154,13 @@ pub fn get_by_id(conn: &Connection, id: i64) -> Result<ClinicalHistory, String> 
                 medications: row.get(8)?,
                 clinical_exam: row.get(9)?,
                 diagnosis: row.get(10)?,
-                treatment_plan: row.get(11)?,
-                created_by: row.get(12)?,
-                created_by_name: row.get(13)?,
-                created_at: row.get(14)?,
-                updated_at: row.get(15)?,
-                evolutions_count: row.get(16)?,
+                cie10_code: row.get(11)?,
+                treatment_plan: row.get(12)?,
+                created_by: row.get(13)?,
+                created_by_name: row.get(14)?,
+                created_at: row.get(15)?,
+                updated_at: row.get(16)?,
+                evolutions_count: row.get(17)?,
             })
         },
     )
@@ -132,7 +172,7 @@ pub fn get_by_patient(conn: &Connection, patient_id: i64) -> Result<Option<Clini
         "SELECT ch.id, ch.patient_id, ch.chief_complaint, ch.present_illness,
                 ch.medical_history, ch.surgical_history, ch.family_history,
                 ch.allergies, ch.medications, ch.clinical_exam, ch.diagnosis,
-                ch.treatment_plan, ch.created_by, u.display_name, ch.created_at, ch.updated_at,
+                ch.cie10_code, ch.treatment_plan, ch.created_by, u.display_name, ch.created_at, ch.updated_at,
                 (SELECT COUNT(*) FROM evolutions WHERE clinical_history_id = ch.id) as evolutions_count
          FROM clinical_histories ch
          LEFT JOIN users u ON u.id = ch.created_by
@@ -151,12 +191,13 @@ pub fn get_by_patient(conn: &Connection, patient_id: i64) -> Result<Option<Clini
                 medications: row.get(8)?,
                 clinical_exam: row.get(9)?,
                 diagnosis: row.get(10)?,
-                treatment_plan: row.get(11)?,
-                created_by: row.get(12)?,
-                created_by_name: row.get(13)?,
-                created_at: row.get(14)?,
-                updated_at: row.get(15)?,
-                evolutions_count: row.get(16)?,
+                cie10_code: row.get(11)?,
+                treatment_plan: row.get(12)?,
+                created_by: row.get(13)?,
+                created_by_name: row.get(14)?,
+                created_at: row.get(15)?,
+                updated_at: row.get(16)?,
+                evolutions_count: row.get(17)?,
             })
         },
     );

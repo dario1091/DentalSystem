@@ -84,51 +84,46 @@ export default function AppointmentCalendarPage() {
     }
   }, [getDateRange]);
 
-  // Pull external (e.g. WhatsApp-created) events from Google for the visible
-  // range and expose them as synthetic "external" appointments (negative ids).
-  const syncGoogle = useCallback(
-    async (opts?: { silent?: boolean }) => {
-      try {
-        setSyncing(true);
-        const range = getDateRange();
-        // Google requires RFC3339 UTC instants for the range bounds.
-        const fromISO = new Date(range.from).toISOString();
-        const toISO = new Date(range.to).toISOString();
-        const events = await listExternalEvents(fromISO, toISO);
+  // Manual sync only: pull external (e.g. WhatsApp-created) Google events for a
+  // bounded window (from today to ~2 months ahead) so it never scans the whole
+  // calendar nor fires automatically on every view change.
+  const syncGoogle = useCallback(async () => {
+    try {
+      setSyncing(true);
+      const from = new Date();
+      const to = new Date();
+      to.setMonth(to.getMonth() + 2);
+      const events = await listExternalEvents(from.toISOString(), to.toISOString());
 
-        const external: AppointmentSummary[] = events
-          .filter((e) => e.is_external)
-          .map((e, idx) => ({
-            id: -1 * (idx + 1), // negative id => synthetic, not a DB row
-            patient_name: e.summary || "Evento externo",
-            doctor_name: "",
-            start_time: e.start_time,
-            end_time: e.end_time,
-            status: "external",
-            reason: null,
-            total_amount: 0,
-          }));
-        setExternalEvents(external);
-        if (!opts?.silent && external.length > 0) {
-          toast("success", `${external.length} evento(s) externo(s) sincronizado(s).`);
-        }
-      } catch (err) {
-        if (!opts?.silent) toast("error", String(err));
-      } finally {
-        setSyncing(false);
-      }
-    },
-    [getDateRange, listExternalEvents, toast],
-  );
+      const external: AppointmentSummary[] = events
+        .filter((e) => e.is_external)
+        .map((e, idx) => ({
+          id: -1 * (idx + 1), // negative id => synthetic, not a DB row
+          patient_name: e.summary || "Evento externo",
+          doctor_name: "",
+          start_time: e.start_time,
+          end_time: e.end_time,
+          status: "external",
+          reason: null,
+          total_amount: 0,
+        }));
+      setExternalEvents(external);
+      toast(
+        "success",
+        external.length > 0
+          ? `${external.length} evento(s) externo(s) sincronizado(s) (2 meses).`
+          : "Sin eventos externos en los próximos 2 meses.",
+      );
+    } catch (err) {
+      toast("error", String(err));
+    } finally {
+      setSyncing(false);
+    }
+  }, [listExternalEvents, toast]);
 
   useEffect(() => {
     fetchAppointments();
   }, [fetchAppointments]);
-
-  // Auto-pull external events whenever the visible range changes (silent).
-  useEffect(() => {
-    syncGoogle({ silent: true });
-  }, [syncGoogle]);
 
   // Combined list handed to the calendar views: real appointments + externals.
   const allEvents = [...appointments, ...externalEvents];
@@ -237,8 +232,9 @@ export default function AppointmentCalendarPage() {
             variant="secondary"
             onClick={() => syncGoogle()}
             disabled={syncing}
+            title="Trae eventos externos de Google (próximos 2 meses)"
           >
-            {syncing ? "Sincronizando..." : "Sincronizar"}
+            {syncing ? "Sincronizando..." : "Sincronizar Google"}
           </Button>
           <Button size="sm" icon={<List size={14} />} variant="secondary" onClick={() => setShowListView(true)}>
             Lista

@@ -4,6 +4,7 @@ import { Settings, Save, Download, Upload, Clock, AlertTriangle } from "lucide-r
 import { Button, Badge } from "@shared/components/ui";
 import { useToast, useConfirm } from "@shared/components/ui";
 import GoogleCalendarSection from "../components/GoogleCalendarSection";
+import ClinicLogoSection from "../components/ClinicLogoSection";
 
 interface BackupInfo {
   file_name: string;
@@ -131,6 +132,9 @@ export default function SettingsPage() {
         <Field label="Dirección" value={settings.clinic_address || ""} onChange={(v) => updateSetting("clinic_address", v)} />
         <Field label="Teléfono" value={settings.clinic_phone || ""} onChange={(v) => updateSetting("clinic_phone", v)} />
       </Section>
+
+      {/* Logo del consultorio */}
+      <ClinicLogoSection onUpdated={loadData} />
 
       {/* Seguridad */}
       <Section title="Seguridad">

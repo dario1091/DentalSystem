@@ -8,4 +8,5 @@ pub mod document_repo;
 pub mod odontogram_repo;
 pub mod patient_repo;
 pub mod procedure_repo;
+pub mod quote_repo;
 pub mod rewards_repo;

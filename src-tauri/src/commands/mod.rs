@@ -11,5 +11,6 @@ pub mod google_calendar;
 pub mod odontogram;
 pub mod patients;
 pub mod procedures;
+pub mod quotes;
 pub mod rewards;
 pub mod trial;

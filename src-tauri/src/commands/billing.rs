@@ -7,6 +7,7 @@ use crate::models::billing::{
     AddPaymentRequest, CreateInvoiceRequest, Invoice, InvoiceDetail, PatientBalance, Payment,
 };
 use crate::models::user::UserRole;
+use crate::services::pdf_generator;
 use crate::services::session::SessionState;
 
 #[tauri::command]
@@ -179,137 +180,65 @@ pub fn export_invoice_pdf(
         )
         .unwrap_or_else(|_| ("Paciente".to_string(), "".to_string(), "".to_string()));
 
-    // Generate PDF
-    use printpdf::*;
-    let (doc, page1, layer1) = PdfDocument::new(
-        &format!("Recibo {}", invoice.invoice_number),
-        Mm(210.0), Mm(297.0), "Layer 1",
-    );
-    let layer = doc.get_page(page1).get_layer(layer1);
-    let font = doc.add_builtin_font(BuiltinFont::Helvetica).unwrap();
-    let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).unwrap();
+    // Clinic logo path (optional).
+    let logo_path: Option<String> = conn
+        .query_row("SELECT value FROM settings WHERE key = 'clinic_logo_path'", [], |r| r.get::<_, String>(0))
+        .ok()
+        .filter(|p| !p.is_empty());
 
-    let mut y = 275.0;
-    let left = 15.0;
-    let lh = 6.0;
-
-    // Header - Clinic
-    layer.use_text(&clinic_name, 14.0, Mm(left), Mm(y), &font_bold);
-    y -= 6.0;
-    if !clinic_nit.is_empty() {
-        layer.use_text(&format!("NIT: {}", clinic_nit), 9.0, Mm(left), Mm(y), &font);
-        y -= 5.0;
-    }
-    if !clinic_address.is_empty() {
-        layer.use_text(&clinic_address, 9.0, Mm(left), Mm(y), &font);
-        y -= 5.0;
-    }
-    if !clinic_phone.is_empty() {
-        layer.use_text(&format!("Tel: {}", clinic_phone), 9.0, Mm(left), Mm(y), &font);
-        y -= 5.0;
-    }
-
-    // Invoice number (right aligned conceptually)
-    y -= 4.0;
-    layer.use_text(&format!("RECIBO No. {}", invoice.invoice_number), 12.0, Mm(120.0), Mm(y + 20.0), &font_bold);
-    layer.use_text(&format!("Fecha: {}", &invoice.created_at[..10]), 9.0, Mm(120.0), Mm(y + 14.0), &font);
-    let status_label = match invoice.status.as_str() {
-        "paid" => "PAGADO",
-        "partial" => "ABONO PARCIAL",
-        "cancelled" => "ANULADO",
-        _ => "PENDIENTE",
+    // Build shared PDF data using the same template as the treatment plan.
+    let clinic = pdf_generator::ClinicInfo {
+        name: clinic_name,
+        nit: clinic_nit,
+        address: clinic_address,
+        phone: clinic_phone,
     };
-    layer.use_text(&format!("Estado: {}", status_label), 9.0, Mm(120.0), Mm(y + 8.0), &font_bold);
+    let items = detail
+        .items
+        .iter()
+        .map(|it| pdf_generator::InvoicePdfItem {
+            description: it.description.clone(),
+            quantity: it.quantity,
+            unit_price: it.unit_price,
+            discount: it.discount,
+            total: it.total,
+        })
+        .collect();
+    let payments = detail
+        .payments
+        .iter()
+        .map(|p| pdf_generator::InvoicePdfPayment {
+            date: p.created_at.clone(),
+            amount: p.amount,
+            method: p.payment_method.clone(),
+            by: p.created_by_name.clone().unwrap_or_default(),
+        })
+        .collect();
 
-    // Separator
-    y -= 2.0;
-    layer.use_text(&"─".repeat(90), 7.0, Mm(left), Mm(y), &font);
-    y -= 8.0;
+    let data = pdf_generator::InvoicePdfData {
+        invoice_number: invoice.invoice_number.clone(),
+        created_at: invoice.created_at.clone(),
+        status: invoice.status.clone(),
+        patient_name,
+        patient_doc,
+        patient_phone,
+        items,
+        subtotal: invoice.subtotal,
+        discount: invoice.discount,
+        total: invoice.total,
+        amount_paid: invoice.amount_paid,
+        payments,
+        notes: invoice.notes.clone(),
+        logo_path,
+    };
 
-    // Patient data
-    layer.use_text(&format!("Paciente: {}", patient_name), 10.0, Mm(left), Mm(y), &font);
-    y -= lh;
-    layer.use_text(&format!("Documento: {}  |  Tel: {}", patient_doc, patient_phone), 9.0, Mm(left), Mm(y), &font);
-    y -= 10.0;
-
-    // Items header
-    layer.use_text("Descripción", 9.0, Mm(left), Mm(y), &font_bold);
-    layer.use_text("Cant.", 9.0, Mm(110.0), Mm(y), &font_bold);
-    layer.use_text("Precio", 9.0, Mm(125.0), Mm(y), &font_bold);
-    layer.use_text("Desc.", 9.0, Mm(150.0), Mm(y), &font_bold);
-    layer.use_text("Total", 9.0, Mm(170.0), Mm(y), &font_bold);
-    y -= 3.0;
-    layer.use_text(&"─".repeat(90), 7.0, Mm(left), Mm(y), &font);
-    y -= 5.0;
-
-    // Items
-    for item in &detail.items {
-        if y < 50.0 { break; }
-        let desc = if item.description.len() > 45 { &item.description[..45] } else { &item.description };
-        layer.use_text(desc, 9.0, Mm(left), Mm(y), &font);
-        layer.use_text(&item.quantity.to_string(), 9.0, Mm(113.0), Mm(y), &font);
-        layer.use_text(&format!("${:.0}", item.unit_price), 9.0, Mm(125.0), Mm(y), &font);
-        if item.discount > 0.0 {
-            layer.use_text(&format!("-${:.0}", item.discount), 9.0, Mm(150.0), Mm(y), &font);
-        }
-        layer.use_text(&format!("${:.0}", item.total), 9.0, Mm(170.0), Mm(y), &font);
-        y -= lh;
-    }
-
-    // Totals
-    y -= 4.0;
-    layer.use_text(&"─".repeat(90), 7.0, Mm(left), Mm(y), &font);
-    y -= 7.0;
-    layer.use_text(&format!("Subtotal: ${:.0}", invoice.subtotal), 10.0, Mm(140.0), Mm(y), &font);
-    y -= lh;
-    if invoice.discount > 0.0 {
-        layer.use_text(&format!("Descuento: -${:.0}", invoice.discount), 10.0, Mm(140.0), Mm(y), &font);
-        y -= lh;
-    }
-    layer.use_text(&format!("TOTAL: ${:.0}", invoice.total), 11.0, Mm(140.0), Mm(y), &font_bold);
-    y -= lh;
-    layer.use_text(&format!("Pagado: ${:.0}", invoice.amount_paid), 10.0, Mm(140.0), Mm(y), &font);
-    y -= lh;
-    let balance = invoice.total - invoice.amount_paid;
-    if balance > 0.0 {
-        layer.use_text(&format!("Saldo: ${:.0}", balance), 10.0, Mm(140.0), Mm(y), &font_bold);
-    }
-
-    // Payments section
-    if !detail.payments.is_empty() {
-        y -= 12.0;
-        layer.use_text("Historial de pagos:", 9.0, Mm(left), Mm(y), &font_bold);
-        y -= lh;
-        for p in &detail.payments {
-            if y < 30.0 { break; }
-            let method_label = match p.payment_method.as_str() {
-                "efectivo" => "Efectivo",
-                "transferencia" => "Transferencia",
-                "tarjeta" => "Tarjeta",
-                _ => &p.payment_method,
-            };
-            layer.use_text(
-                &format!("  {} - ${:.0} ({}) - {}", &p.created_at[..10], p.amount, method_label, p.created_by_name.as_deref().unwrap_or("")),
-                8.0, Mm(left), Mm(y), &font,
-            );
-            y -= 5.0;
-        }
-    }
-
-    // Save to Downloads
     let downloads_dir = dirs::download_dir()
         .or_else(|| dirs::home_dir().map(|h| h.join("Downloads")))
         .ok_or("No se pudo determinar carpeta de Descargas.")?;
-    std::fs::create_dir_all(&downloads_dir).map_err(|e| e.to_string())?;
 
-    let filename = format!("recibo_{}.pdf", invoice.invoice_number);
-    let dest = downloads_dir.join(&filename);
+    let dest_str = pdf_generator::generate_invoice_pdf(&clinic, &data, &downloads_dir)?;
 
-    let pdf_bytes = doc.save_to_bytes().map_err(|e| format!("Error PDF: {}", e))?;
-    std::fs::write(&dest, &pdf_bytes).map_err(|e| e.to_string())?;
-
-    // Open
-    let dest_str = dest.to_string_lossy().to_string();
+    // Open the generated PDF with the OS default viewer.
     #[cfg(target_os = "windows")]
     { let _ = std::process::Command::new("cmd").args(["/C", "start", "", &dest_str]).spawn(); }
     #[cfg(target_os = "macos")]

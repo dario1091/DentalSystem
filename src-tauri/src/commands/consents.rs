@@ -5,7 +5,28 @@ use crate::db::repositories::consent_repo;
 use crate::db::Database;
 use crate::models::consent::{Consent, CreateConsentRequest, SaveSignatureRequest, UpdateConsentStatusRequest, CONSENT_TEMPLATES};
 use crate::services::file_manager;
+use crate::services::pdf_generator::{self, ClinicInfo, ConsentPdfData};
 use crate::services::session::SessionState;
+
+/// Read clinic header info + logo path from settings for branded PDFs.
+fn clinic_info_and_logo(conn: &rusqlite::Connection) -> (ClinicInfo, Option<String>) {
+    let get = |key: &str| -> Option<String> {
+        conn.query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            rusqlite::params![key],
+            |r| r.get::<_, String>(0),
+        )
+        .ok()
+        .filter(|v: &String| !v.is_empty())
+    };
+    let clinic = ClinicInfo {
+        name: get("clinic_name").unwrap_or_else(|| "Consultorio Odontológico".to_string()),
+        nit: get("clinic_nit").unwrap_or_default(),
+        address: get("clinic_address").unwrap_or_default(),
+        phone: get("clinic_phone").unwrap_or_default(),
+    };
+    (clinic, get("clinic_logo_path"))
+}
 
 fn get_base_path(conn: &rusqlite::Connection, app_handle: &tauri::AppHandle) -> PathBuf {
     use tauri::Manager;
@@ -143,7 +164,7 @@ fn regenerate_pdf_with_signature(
     consent: &Consent,
     signature_png: &[u8],
 ) -> Result<(), String> {
-    use printpdf::*;
+    let _ = app_handle; // path comes from the stored consent
 
     // Get patient data
     let (patient_name, patient_doc, patient_phone): (String, String, String) = conn
@@ -177,172 +198,23 @@ fn regenerate_pdf_with_signature(
     };
 
     let date = chrono::Local::now().format("%d/%m/%Y").to_string();
-
-    // Create PDF
-    let (doc, page1, layer1) = PdfDocument::new(
-        &template_label,
-        Mm(210.0),
-        Mm(297.0),
-        "Layer 1",
-    );
-
-    let current_layer = doc.get_page(page1).get_layer(layer1);
-    let font = doc.add_builtin_font(BuiltinFont::Helvetica).unwrap();
-    let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).unwrap();
-
-    let mut y = 270.0;
-    let left = 20.0;
-    let line_height = 6.0;
-
-    // Title
-    current_layer.use_text(&template_label, 14.0, Mm(left), Mm(y), &font_bold);
-    y -= 10.0;
-
-    // Patient data
-    current_layer.use_text(&format!("Paciente: {}", patient_name), 10.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Documento: {}", patient_doc), 10.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Procedimiento: {}", procedure_name), 10.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Fecha: {}", date), 10.0, Mm(left), Mm(y), &font);
-    y -= 10.0;
-
-    // Body text
-    for line in template_content.lines() {
-        if y < 70.0 { break; }
-        current_layer.use_text(line, 9.0, Mm(left), Mm(y), &font);
-        y -= line_height - 0.5;
-    }
-
-    // Signature section
-    y -= 10.0;
-    current_layer.use_text("─".repeat(70).as_str(), 8.0, Mm(left), Mm(y), &font);
-    y -= 8.0;
-
-    // Embed signature image
-    match decode_png_for_pdf(signature_png) {
-        Ok((img_data, img_width, img_height)) => {
-            let image = Image::try_from(ImageXObject {
-                width: Px(img_width as usize),
-                height: Px(img_height as usize),
-                color_space: ColorSpace::Rgb,
-                bits_per_component: ColorBits::Bit8,
-                interpolate: true,
-                image_data: img_data,
-                image_filter: None,
-                clipping_bbox: None,
-                smask: None,
-            });
-
-            match image {
-                Ok(img) => {
-                    // Scale signature to ~60mm wide in the PDF
-                    let target_width_mm = 60.0_f32;
-                    let px_to_mm = 0.264583_f32; // 1px = 0.264583mm at 96dpi
-                    let natural_width_mm = img_width as f32 * px_to_mm;
-                    let scale = target_width_mm / natural_width_mm;
-
-                    img.add_to_layer(
-                        current_layer.clone(),
-                        ImageTransform {
-                            translate_x: Some(Mm(left)),
-                            translate_y: Some(Mm(y - 20.0)),
-                            scale_x: Some(scale),
-                            scale_y: Some(scale),
-                            ..Default::default()
-                        },
-                    );
-                    y -= 25.0;
-                }
-                Err(_) => {
-                    current_layer.use_text("[FIRMA DIGITAL REGISTRADA]", 12.0, Mm(left), Mm(y), &font_bold);
-                    y -= 10.0;
-                }
-            }
-        }
-        Err(_) => {
-            current_layer.use_text("[FIRMA DIGITAL REGISTRADA]", 12.0, Mm(left), Mm(y), &font_bold);
-            y -= 10.0;
-        }
-    }
-
-    current_layer.use_text(&format!("Firmado por: {}", patient_name), 10.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Documento: {}", patient_doc), 10.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Fecha de firma: {}", date), 10.0, Mm(left), Mm(y), &font);
-
-    // Overwrite the original PDF
     let pdf_path = consent.pdf_path.as_deref().ok_or("No hay ruta de PDF.")?;
-    let pdf_bytes = doc.save_to_bytes()
-        .map_err(|e| format!("Error al generar PDF firmado: {}", e))?;
-    std::fs::write(pdf_path, &pdf_bytes)
-        .map_err(|e| format!("Error al guardar PDF firmado: {}", e))?;
+
+    let (clinic, logo_path) = clinic_info_and_logo(conn);
+    let data = ConsentPdfData {
+        title: template_label,
+        content: template_content,
+        patient_name,
+        patient_doc,
+        patient_phone,
+        procedure_name,
+        date,
+        signature_png: Some(signature_png.to_vec()),
+        logo_path,
+    };
+    pdf_generator::generate_consent_pdf(&clinic, &data, std::path::Path::new(pdf_path))?;
 
     Ok(())
-}
-
-/// Decodes PNG bytes into RGB pixel data + dimensions for printpdf
-fn decode_png_for_pdf(png_data: &[u8]) -> Result<(Vec<u8>, u32, u32), String> {
-    use std::io::Cursor;
-
-    let decoder = png::Decoder::new(Cursor::new(png_data));
-    let mut reader = decoder.read_info()
-        .map_err(|e| format!("Error al decodificar PNG: {}", e))?;
-
-    let info = reader.info();
-    let width = info.width;
-    let height = info.height;
-    let color_type = info.color_type;
-
-    let mut buf = vec![0; reader.output_buffer_size()];
-    let frame_info = reader.next_frame(&mut buf)
-        .map_err(|e| format!("Error al leer frame PNG: {}", e))?;
-
-    let bytes = &buf[..frame_info.buffer_size()];
-
-    // Convert to RGB (printpdf doesn't handle RGBA well)
-    let rgb_data = match color_type {
-        png::ColorType::Rgb => bytes.to_vec(),
-        png::ColorType::Rgba => {
-            // Composite RGBA over white background
-            let mut rgb = Vec::with_capacity((bytes.len() / 4) * 3);
-            for chunk in bytes.chunks(4) {
-                let r = chunk[0] as f32;
-                let g = chunk[1] as f32;
-                let b = chunk[2] as f32;
-                let a = chunk[3] as f32 / 255.0;
-                // Composite over white
-                rgb.push(((r * a) + (255.0 * (1.0 - a))) as u8);
-                rgb.push(((g * a) + (255.0 * (1.0 - a))) as u8);
-                rgb.push(((b * a) + (255.0 * (1.0 - a))) as u8);
-            }
-            rgb
-        }
-        png::ColorType::Grayscale => {
-            let mut rgb = Vec::with_capacity(bytes.len() * 3);
-            for &gray in bytes {
-                rgb.push(gray);
-                rgb.push(gray);
-                rgb.push(gray);
-            }
-            rgb
-        }
-        png::ColorType::GrayscaleAlpha => {
-            let mut rgb = Vec::with_capacity((bytes.len() / 2) * 3);
-            for chunk in bytes.chunks(2) {
-                let gray = chunk[0];
-                rgb.push(gray);
-                rgb.push(gray);
-                rgb.push(gray);
-            }
-            rgb
-        }
-        _ => return Err("Formato de color PNG no soportado.".to_string()),
-    };
-
-    Ok((rgb_data, width, height))
 }
 
 #[tauri::command]
@@ -611,81 +483,32 @@ fn generate_consent_pdf(
 
     let date = chrono::Local::now().format("%d/%m/%Y").to_string();
 
-    // Generate simple PDF using printpdf
-    use printpdf::*;
-    let (doc, page1, layer1) = PdfDocument::new(
-        &template_label,
-        Mm(210.0),
-        Mm(297.0),
-        "Layer 1",
-    );
-
-    let current_layer = doc.get_page(page1).get_layer(layer1);
-    let font = doc.add_builtin_font(BuiltinFont::Helvetica).unwrap();
-    let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold).unwrap();
-
-    let mut y = 270.0;
-    let left = 20.0;
-    let line_height = 7.0;
-
-    // Title
-    current_layer.use_text(&template_label, 16.0, Mm(left), Mm(y), &font_bold);
-    y -= 12.0;
-
-    // Separator line
-    current_layer.use_text(&"─".repeat(70), 8.0, Mm(left), Mm(y), &font);
-    y -= 10.0;
-
-    // Patient data
-    current_layer.use_text(&format!("Paciente: {}", patient_name), 11.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Documento: {}", patient_doc), 11.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Teléfono: {}", patient_phone), 11.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Procedimiento: {}", procedure_name), 11.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Fecha: {}", date), 11.0, Mm(left), Mm(y), &font);
-    y -= 12.0;
-
-    // Body text from DB template
-    for line in template_content.lines() {
-        if y < 40.0 { break; }
-        current_layer.use_text(line, 10.0, Mm(left), Mm(y), &font);
-        y -= line_height - 1.0;
-    }
-
-    // Signature area
-    y -= 15.0;
-    current_layer.use_text(&"─".repeat(70), 8.0, Mm(left), Mm(y), &font);
-    y -= 8.0;
-    current_layer.use_text("Firma del paciente: ___________________________", 11.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Nombre: {}", patient_name), 11.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Documento: {}", patient_doc), 11.0, Mm(left), Mm(y), &font);
-    y -= line_height;
-    current_layer.use_text(&format!("Fecha: {}", date), 11.0, Mm(left), Mm(y), &font);
-
-    // Save PDF
+    // Destination path (per-patient consents folder).
     let base_path = get_base_path(conn, app_handle);
     let consent_dir = base_path
         .join("pacientes")
         .join(request.patient_id.to_string())
         .join("consentimientos");
-    std::fs::create_dir_all(&consent_dir)
-        .map_err(|e| format!("Error al crear directorio: {}", e))?;
-
-    let filename = format!("consentimiento_{}_{}.pdf",
+    let filename = format!(
+        "consentimiento_{}_{}.pdf",
         request.template_name,
         chrono::Local::now().format("%Y%m%d_%H%M%S")
     );
     let pdf_path = consent_dir.join(&filename);
 
-    let pdf_bytes = doc.save_to_bytes()
-        .map_err(|e| format!("Error al generar PDF: {}", e))?;
-    std::fs::write(&pdf_path, &pdf_bytes)
-        .map_err(|e| format!("Error al guardar PDF: {}", e))?;
+    let (clinic, logo_path) = clinic_info_and_logo(conn);
+    let data = ConsentPdfData {
+        title: template_label,
+        content: template_content,
+        patient_name,
+        patient_doc,
+        patient_phone,
+        procedure_name,
+        date,
+        signature_png: None,
+        logo_path,
+    };
+    pdf_generator::generate_consent_pdf(&clinic, &data, &pdf_path)?;
 
     Ok(pdf_path.to_string_lossy().to_string())
 }

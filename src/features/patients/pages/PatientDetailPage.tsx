@@ -27,8 +27,9 @@ import DocumentsTab from "@features/documents/components/DocumentsTab";
 import ConsentsTab from "@features/consents/components/ConsentsTab";
 import BillingTab from "@features/billing/components/BillingTab";
 import PrizesTab from "@features/rewards/components/PrizesTab";
+import QuotesTab from "@features/quotes/components/QuotesTab";
 
-type Tab = "general" | "odontogram" | "history" | "documents" | "consents" | "billing" | "prizes";
+type Tab = "general" | "odontogram" | "quotes" | "history" | "documents" | "consents" | "billing" | "prizes";
 
 export default function PatientDetailPage() {
   const { id } = useParams();
@@ -85,6 +86,7 @@ export default function PatientDetailPage() {
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "general", label: "General", icon: <FileText size={16} /> },
     { key: "odontogram", label: "Odontograma", icon: <Activity size={16} /> },
+    { key: "quotes", label: "Plan de Tratamiento", icon: <Receipt size={16} /> },
     { key: "history", label: "Historia Clínica", icon: <FileText size={16} /> },
     { key: "documents", label: "Documentos", icon: <FolderOpen size={16} /> },
     { key: "consents", label: "Consentimientos", icon: <FileText size={16} /> },
@@ -184,6 +186,7 @@ export default function PatientDetailPage() {
       <div>
         {activeTab === "general" && <GeneralTab patient={patient} />}
         {activeTab === "odontogram" && <OdontogramPage patientId={patient.id} />}
+        {activeTab === "quotes" && <QuotesTab patientId={patient.id} />}
         {activeTab === "history" && <ClinicalHistoryTab patientId={patient.id} />}
         {activeTab === "documents" && <DocumentsTab patientId={patient.id} />}
         {activeTab === "consents" && <ConsentsTab patientId={patient.id} />}

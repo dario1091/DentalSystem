@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, Plus, Eye } from "lucide-react";
+import { Download, FileText, Plus, Eye } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { Button, Badge, Select } from "@shared/components/ui";
 import { useToast } from "@shared/components/ui";
 import { useOdontogram, type OdontogramFinding, type OdontogramSummary } from "../hooks/useOdontogram";
@@ -149,8 +150,10 @@ export default function OdontogramPage({ patientId, readOnly = false }: Odontogr
     }
   };
 
-  const handleExportPDF = () => {
-    // Canvas to image export
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportImage = () => {
+    // Quick PNG export (image only).
     const canvas = document.querySelector("canvas") as HTMLCanvasElement | null;
     if (!canvas) return;
 
@@ -159,6 +162,44 @@ export default function OdontogramPage({ patientId, readOnly = false }: Odontogr
     link.href = canvas.toDataURL("image/png");
     link.click();
     toast("success", "Odontograma exportado como imagen.");
+  };
+
+  // Render the odontogram canvas at higher resolution and export a branded PDF.
+  const handleExportPdfDocument = async () => {
+    if (!selectedId) return;
+    const source = document.querySelector("canvas") as HTMLCanvasElement | null;
+    if (!source) return;
+    setExportingPdf(true);
+    try {
+      const scale = 2.5;
+      const offscreen = document.createElement("canvas");
+      offscreen.width = Math.round(source.width * scale);
+      offscreen.height = Math.round(source.height * scale);
+      const ctx = offscreen.getContext("2d");
+      if (!ctx) throw new Error("No se pudo preparar la imagen.");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(source, 0, 0, offscreen.width, offscreen.height);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        offscreen.toBlob(resolve, "image/png"),
+      );
+      if (!blob) throw new Error("No se pudo generar la imagen.");
+      const buffer = await blob.arrayBuffer();
+      const png = Array.from(new Uint8Array(buffer));
+
+      await invoke<string>("export_odontogram_pdf", {
+        odontogramId: selectedId,
+        odontogramPng: png,
+      });
+      toast("success", "Odontograma exportado como PDF.");
+    } catch (err) {
+      toast("error", String(err));
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   if (!patientId) {
@@ -218,8 +259,17 @@ export default function OdontogramPage({ patientId, readOnly = false }: Odontogr
             </>
           )}
 
-          <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={handleExportPDF}>
-            Exportar
+          <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={handleExportImage}>
+            Imagen
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<FileText size={14} />}
+            onClick={handleExportPdfDocument}
+            disabled={exportingPdf || !selectedId}
+          >
+            {exportingPdf ? "Generando..." : "Exportar PDF"}
           </Button>
 
           {odontograms.length > 1 && (

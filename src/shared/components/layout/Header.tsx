@@ -4,7 +4,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useAuth } from "@shared/hooks/useAuth";
 import { Badge } from "@shared/components/ui";
 import UpdateButton from "@shared/components/UpdateButton";
-import DarkModeToggle from "@shared/components/DarkModeToggle";
+import LicenseIndicator from "@shared/components/LicenseIndicator";
 
 const roleLabels: Record<string, string> = {
   master: "Administrador",
@@ -45,8 +45,8 @@ export function Header() {
         )}
       </div>
       <div className="flex items-center gap-4">
+        <LicenseIndicator />
         <UpdateButton />
-        <DarkModeToggle />
         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
           <User size={16} />
           <span>{user?.display_name || "Usuario"}</span>

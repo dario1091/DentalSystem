@@ -13,6 +13,7 @@ pub struct ClinicalHistory {
     pub medications: Option<String>,
     pub clinical_exam: Option<String>,
     pub diagnosis: Option<String>,
+    pub cie10_code: Option<String>,
     pub treatment_plan: Option<String>,
     pub created_by: i64,
     pub created_by_name: Option<String>,
@@ -57,6 +58,7 @@ pub struct CreateClinicalHistoryRequest {
     pub medications: Option<String>,
     pub clinical_exam: Option<String>,
     pub diagnosis: Option<String>,
+    pub cie10_code: Option<String>,
     pub treatment_plan: Option<String>,
 }
 
@@ -72,7 +74,15 @@ pub struct UpdateClinicalHistoryRequest {
     pub medications: Option<String>,
     pub clinical_exam: Option<String>,
     pub diagnosis: Option<String>,
+    pub cie10_code: Option<String>,
     pub treatment_plan: Option<String>,
+}
+
+/// A CIE-10 code entry (dental subset) for the search catalog.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Cie10Code {
+    pub code: String,
+    pub description: String,
 }
 
 #[derive(Debug, Deserialize)]

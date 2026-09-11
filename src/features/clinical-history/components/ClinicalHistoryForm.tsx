@@ -1,7 +1,13 @@
 import { useState } from "react";
-import { Save, X } from "lucide-react";
+import { Save, X, Search } from "lucide-react";
 import { Button } from "@shared/components/ui";
-import type { ClinicalHistory, CreateClinicalHistoryRequest, UpdateClinicalHistoryRequest } from "../types";
+import { useClinicalHistory } from "../hooks/useClinicalHistory";
+import type {
+  ClinicalHistory,
+  CreateClinicalHistoryRequest,
+  UpdateClinicalHistoryRequest,
+  Cie10Code,
+} from "../types";
 
 interface ClinicalHistoryFormProps {
   patientId: number;
@@ -26,6 +32,7 @@ export default function ClinicalHistoryForm({
     medications: existing?.medications ?? "",
     clinical_exam: existing?.clinical_exam ?? "",
     diagnosis: existing?.diagnosis ?? "",
+    cie10_code: existing?.cie10_code ?? "",
     treatment_plan: existing?.treatment_plan ?? "",
   });
   const [saving, setSaving] = useState(false);
@@ -52,6 +59,7 @@ export default function ClinicalHistoryForm({
           medications: form.medications || null,
           clinical_exam: form.clinical_exam || null,
           diagnosis: form.diagnosis || null,
+          cie10_code: form.cie10_code || null,
           treatment_plan: form.treatment_plan || null,
         } as UpdateClinicalHistoryRequest);
       } else {
@@ -66,6 +74,7 @@ export default function ClinicalHistoryForm({
           medications: form.medications || null,
           clinical_exam: form.clinical_exam || null,
           diagnosis: form.diagnosis || null,
+          cie10_code: form.cie10_code || null,
           treatment_plan: form.treatment_plan || null,
         } as CreateClinicalHistoryRequest);
       }
@@ -150,12 +159,18 @@ export default function ClinicalHistoryForm({
             placeholder="Hallazgos del examen clínico intraoral y extraoral"
           />
 
-          {/* Diagnóstico */}
+          {/* Código CIE-10 (opcional, con buscador) */}
+          <Cie10Search
+            value={form.cie10_code}
+            onChange={(v) => handleChange("cie10_code", v)}
+          />
+
+          {/* Diagnóstico descriptivo */}
           <FormTextarea
-            label="Diagnóstico (CIE-10)"
+            label="Diagnóstico (descripción)"
             value={form.diagnosis}
             onChange={(v) => handleChange("diagnosis", v)}
-            placeholder="Diagnóstico según clasificación CIE-10"
+            placeholder="Descripción del diagnóstico"
             rows={2}
           />
 
@@ -184,6 +199,122 @@ export default function ClinicalHistoryForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Searchable, multi-select CIE-10 (dental) code picker. Stores the selected
+ * codes as a comma-separated string in the same `cie10_code` field.
+ */
+function Cie10Search({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (codes: string) => void;
+}) {
+  const { searchCie10 } = useClinicalHistory();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Cie10Code[]>([]);
+  const [open, setOpen] = useState(false);
+  // Remember descriptions of picked codes for display.
+  const [descs, setDescs] = useState<Record<string, string>>({});
+
+  // Current codes as an array (parsed from the comma-separated value).
+  const codes = value
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  const runSearch = (q: string) => {
+    setQuery(q);
+    setOpen(true);
+    searchCie10(q).then(setResults).catch(() => setResults([]));
+  };
+
+  const add = (c: Cie10Code) => {
+    if (codes.includes(c.code)) {
+      setOpen(false);
+      setQuery("");
+      return;
+    }
+    setDescs((prev) => ({ ...prev, [c.code]: c.description }));
+    onChange([...codes, c.code].join(", "));
+    setOpen(false);
+    setQuery("");
+  };
+
+  const remove = (code: string) => {
+    onChange(codes.filter((c) => c !== code).join(", "));
+  };
+
+  return (
+    <div>
+      <label className="mb-1.5 block text-sm font-medium text-gray-700">
+        Códigos CIE-10 (opcional, puede agregar varios)
+      </label>
+
+      {/* Selected codes as chips */}
+      {codes.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {codes.map((code) => (
+            <span
+              key={code}
+              className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-800"
+              title={descs[code] || ""}
+            >
+              <span className="font-mono font-semibold">{code}</span>
+              {descs[code] ? <span className="text-blue-700">— {descs[code]}</span> : null}
+              <button
+                type="button"
+                onClick={() => remove(code)}
+                className="ml-0.5 text-blue-500 hover:text-red-500"
+                aria-label={`Quitar ${code}`}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="relative">
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+            <Search size={16} />
+          </div>
+          <input
+            value={query}
+            onFocus={() => runSearch(query)}
+            onChange={(e) => runSearch(e.target.value)}
+            placeholder="Buscar y agregar por código (K02) o descripción (caries)..."
+            className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        {open && results.length > 0 && (
+          <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+            {results.map((c) => {
+              const already = codes.includes(c.code);
+              return (
+                <button
+                  key={c.code}
+                  type="button"
+                  disabled={already}
+                  onClick={() => add(c)}
+                  className={`flex w-full items-start gap-2 border-b border-gray-50 px-3 py-2 text-left last:border-b-0 ${
+                    already ? "cursor-default opacity-40" : "hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="font-mono text-xs font-semibold text-blue-600">{c.code}</span>
+                  <span className="text-sm text-gray-700">{c.description}</span>
+                  {already && <span className="ml-auto text-xs text-gray-400">agregado</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -172,6 +172,33 @@ pub fn save_clinic_logo(
     Ok(path_str)
 }
 
+/// Return the current clinic logo image bytes (for display in the UI).
+#[tauri::command]
+pub fn get_clinic_logo(
+    db: State<'_, Database>,
+    session: State<'_, SessionState>,
+) -> Result<Option<Vec<u8>>, String> {
+    session.require_user()?;
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+
+    let path: Option<String> = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'clinic_logo_path'",
+            [],
+            |r| r.get(0),
+        )
+        .ok()
+        .filter(|p: &String| !p.is_empty());
+
+    match path {
+        Some(p) => match std::fs::read(&p) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(_) => Ok(None),
+        },
+        None => Ok(None),
+    }
+}
+
 /// Initial setup: save clinic info (used on first run). Rejects if already completed.
 #[tauri::command]
 pub fn initial_setup(

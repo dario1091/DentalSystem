@@ -8,6 +8,7 @@ import type {
   AddEvolutionRequest,
   AddAddendumRequest,
   UpdateEvolutionRequest,
+  Cie10Code,
 } from "../types";
 
 export function useClinicalHistory() {
@@ -51,6 +52,10 @@ export function useClinicalHistory() {
     });
   };
 
+  const searchCie10 = async (query: string): Promise<Cie10Code[]> => {
+    return invoke<Cie10Code[]>("search_cie10", { query });
+  };
+
   return {
     getClinicalHistory,
     createClinicalHistory,
@@ -59,5 +64,6 @@ export function useClinicalHistory() {
     addAddendum,
     updateEvolution,
     getEvolutions,
+    searchCie10,
   };
 }

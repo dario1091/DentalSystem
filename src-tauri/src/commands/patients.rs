@@ -107,7 +107,24 @@ pub fn export_patient_pdf(
         .download_dir()
         .map_err(|e| format!("Path error: {}", e))?;
 
-    pdf_generator::generate_patient_card(&patient, &output_dir)
+    let get = |key: &str| -> Option<String> {
+        conn.query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            rusqlite::params![key],
+            |r| r.get::<_, String>(0),
+        )
+        .ok()
+        .filter(|v: &String| !v.is_empty())
+    };
+    let clinic = pdf_generator::ClinicInfo {
+        name: get("clinic_name").unwrap_or_else(|| "Consultorio Odontológico".to_string()),
+        nit: get("clinic_nit").unwrap_or_default(),
+        address: get("clinic_address").unwrap_or_default(),
+        phone: get("clinic_phone").unwrap_or_default(),
+    };
+    let logo_path = get("clinic_logo_path");
+
+    pdf_generator::generate_patient_card(&patient, &clinic, logo_path.as_deref(), &output_dir)
 }
 
 fn log_audit(conn: &rusqlite::Connection, user_id: i64, action: &str, entity_id: i64) {

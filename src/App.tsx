@@ -20,21 +20,32 @@ import RewardsPage from "@features/rewards/pages/RewardsPage";
 import SettingsPage from "@features/settings/pages/SettingsPage";
 import UsersListPage from "@features/auth/pages/UsersListPage";
 
-interface TrialStatus {
+interface TrialStatusFull {
   is_expired: boolean;
   days_remaining: number;
   days_used: number;
   trial_start: string;
   trial_end: string;
   installation_id: string;
+  licensed: boolean;
+  is_permanent: boolean;
+  warning: boolean;
+  license_expires: string | null;
 }
 
 function App() {
   const { user, isAuthenticated, checkSession } = useAuth();
   const [loading, setLoading] = useState(true);
   const [trialExpired, setTrialExpired] = useState(false);
-  const [trialInfo, setTrialInfo] = useState<TrialStatus | null>(null);
+  const [trialInfo, setTrialInfo] = useState<TrialStatusFull | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
+
+  // Dark mode is disabled for now: force light theme and clear any stored
+  // preference so previously-enabled dark mode doesn't linger.
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+    localStorage.removeItem("theme");
+  }, []);
 
   useEffect(() => {
     initApp();
@@ -50,16 +61,14 @@ function App() {
         return;
       }
 
-      // Check license
-      const licensed = await invoke<boolean>("is_licensed");
-      if (!licensed) {
-        const trial = await invoke<TrialStatus>("check_trial");
-        setTrialInfo(trial);
-        if (trial.is_expired) {
-          setTrialExpired(true);
-          setLoading(false);
-          return;
-        }
+      // Evaluate access (trial or license). check_trial already accounts for
+      // an active license and its expiration, so it is the single source here.
+      const trial = await invoke<TrialStatusFull>("check_trial");
+      setTrialInfo(trial);
+      if (trial.is_expired) {
+        setTrialExpired(true);
+        setLoading(false);
+        return;
       }
     } catch (err) {
       // If license/trial check fails due to DB not ready, allow through
@@ -127,6 +136,13 @@ function App() {
   // Authenticated: show app
   return (
     <BrowserRouter>
+      {trialInfo?.warning && (
+        <LicenseWarningBanner
+          days={trialInfo.days_remaining}
+          licensed={trialInfo.licensed}
+          expires={trialInfo.license_expires}
+        />
+      )}
       <Routes>
         <Route path="/" element={<AppShell />}>
           <Route index element={<Navigate to="/patients" replace />} />
@@ -145,6 +161,38 @@ function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+  );
+}
+
+function LicenseWarningBanner({
+  days,
+  licensed,
+  expires,
+}: {
+  days: number;
+  licensed: boolean;
+  expires: string | null;
+}) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+
+  const label = licensed ? "Tu licencia" : "Tu período de prueba";
+  const when = expires ? ` (vence el ${new Date(expires).toLocaleDateString("es-CO")})` : "";
+  const dayText = days === 0 ? "hoy" : days === 1 ? "en 1 día" : `en ${days} días`;
+
+  return (
+    <div className="flex items-center justify-center gap-3 bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
+      <span>
+        {label} vence <strong>{dayText}</strong>
+        {when}. Para renovar, contacta al desarrollador.
+      </span>
+      <button
+        onClick={() => setDismissed(true)}
+        className="rounded px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
+      >
+        Ocultar
+      </button>
+    </div>
   );
 }
 
