@@ -12,7 +12,7 @@ const WARN_DAYS: i64 = 5;
 /// Ed25519 PUBLIC key (hex, 32 bytes). Used only to VERIFY license keys.
 /// The matching PRIVATE key lives only in the offline generator (tools/).
 const LICENSE_PUBLIC_KEY_HEX: &str =
-    "cb188b0bee24bc4efc75f817e75e1393e9a96f3386a41d822d91c434570fc1f5";
+    "b9f7caa5c6144cae339113036edbd35d713f2b2a7c8f881e8c28b9e64020d536";
 
 #[derive(Debug, Serialize)]
 pub struct TrialStatus {
