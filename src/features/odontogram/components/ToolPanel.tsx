@@ -28,6 +28,7 @@ export default function ToolPanel({
             size="sm"
             variant="ghost"
             icon={<Eraser size={14} />}
+            tabIndex={-1}
             onClick={() => onSelectTool(selectedTool === "__eraser" ? null : "__eraser")}
             className={selectedTool === "__eraser" ? "!bg-red-100 !text-red-700" : ""}
             title="Borrador"
@@ -36,6 +37,7 @@ export default function ToolPanel({
             size="sm"
             variant="ghost"
             icon={<Undo2 size={14} />}
+            tabIndex={-1}
             onClick={onUndo}
             disabled={!canUndo}
             title="Deshacer"
@@ -50,6 +52,7 @@ export default function ToolPanel({
             <button
               key={finding.id}
               type="button"
+              tabIndex={-1}
               onClick={() => onSelectTool(isSelected ? null : finding.id)}
               className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${
                 isSelected

@@ -224,6 +224,8 @@ pub struct QuotePdfData {
     pub odontogram_png: Option<Vec<u8>>,
     /// Optional clinic logo file path (PNG or JPG) to render in the header.
     pub logo_path: Option<String>,
+    /// Optional findings list (used to render the color legend when an odontogram is included).
+    pub odontogram_findings: Vec<OdontogramFindingLine>,
 }
 
 // Brand color (a calm teal/blue) used for header bands and accents.
@@ -253,7 +255,40 @@ fn fill_rect(layer: &PdfLayerReference, x: f32, y: f32, w: f32, h: f32, color: (
     layer.add_line(rect);
 }
 
-/// Draw a thin horizontal line at height `y` (mm), from `x` for `w` mm.
+/// Draw a small filled color swatch using raw PDF operators.
+/// PDF operators: rg (set fill color), re (rectangle path), f (fill).
+/// This is identical to how HTML Canvas ctx.fillRect works — direct fill, no stroke.
+fn draw_swatch(layer: &PdfLayerReference, x: f32, y: f32, size: f32, color: (f32, f32, f32)) {
+    use lopdf::content::Operation;
+    use lopdf::Object;
+    // Convert mm to PDF points (1mm = 2.8346 pt)
+    let mm_to_pt = 2.8346_f32;
+    let xp = x * mm_to_pt;
+    let yp = y * mm_to_pt;
+    let sp = size * mm_to_pt;
+    // rg — set non-stroking (fill) color in DeviceRGB
+    layer.add_operation(Operation::new(
+        "rg",
+        vec![
+            Object::Real(color.0),
+            Object::Real(color.1),
+            Object::Real(color.2),
+        ],
+    ));
+    // re — append rectangle to path: x y w h re
+    layer.add_operation(Operation::new(
+        "re",
+        vec![
+            Object::Real(xp),
+            Object::Real(yp),
+            Object::Real(sp),
+            Object::Real(sp),
+        ],
+    ));
+    // f — fill the path using non-zero winding rule
+    layer.add_operation(Operation::new("f", vec![]));
+}
+
 fn hline(layer: &PdfLayerReference, x: f32, w: f32, y: f32, thickness: f32, color: (f32, f32, f32)) {
     layer.set_outline_color(rgb(color));
     layer.set_outline_thickness(thickness);
@@ -446,6 +481,53 @@ pub fn generate_quote_pdf(
                 );
                 y = translate_y.max(48.0) - 8.0;
             }
+        }
+    }
+
+    // ---- Odontogram color legend (only when findings are present) ----
+    if !data.odontogram_findings.is_empty() && data.odontogram_png.is_some() {
+        // Collect unique finding types.
+        let mut seen: Vec<(String, String)> = Vec::new();
+        for f in &data.odontogram_findings {
+            if !seen.iter().any(|(_, lbl)| lbl == &f.label) {
+                seen.push((f.color.clone(), f.label.clone()));
+            }
+        }
+        if !seen.is_empty() && y > 30.0 {
+            layer.set_fill_color(rgb(muted));
+            layer.use_text("CONVENCIONES DEL ODONTOGRAMA", 8.0, Mm(left), Mm(y), &font_bold);
+            y -= 2.5;
+            hline(&layer, left, 210.0 - left * 2.0, y, 0.3, (0.82, 0.85, 0.88));
+            y -= 6.5;
+
+            let legend_cols = 4usize;
+            let col_w = (210.0 - left * 2.0) / legend_cols as f32;
+            let swatch_s = 3.5_f32;
+            let text_i = swatch_s + 2.0;
+            let mut lc = 0usize;
+            let mut ly = y;
+
+            for (color_hex, label) in &seen {
+                if ly < 18.0 {
+                    break;
+                }
+                let lx = left + lc as f32 * col_w;
+                let swatch_y = ly - swatch_s + 1.0;
+                draw_swatch(&layer, lx, swatch_y, swatch_s, hex_to_rgb(color_hex));
+                let lbl = if label.len() > 20 { &label[..20] } else { label.as_str() };
+                layer.set_fill_color(rgb(ink));
+                layer.use_text(lbl, 8.0, Mm(lx + text_i), Mm(ly), &font);
+                lc += 1;
+                if lc >= legend_cols {
+                    lc = 0;
+                    ly -= 5.5;
+                }
+            }
+            // Flush partial last row.
+            if lc > 0 {
+                ly -= 5.5;
+            }
+            y = ly - 4.0;
         }
     }
 
@@ -772,6 +854,18 @@ pub fn generate_consent_pdf(
         .map_err(|e| format!("Error al generar PDF: {}", e))?;
     std::fs::write(dest_path, &bytes).map_err(|e| format!("Error al guardar PDF: {}", e))?;
     Ok(())
+}
+
+/// Parse a CSS hex color like "#EF4444" into an (r, g, b) tuple of f32 [0..1].
+fn hex_to_rgb(hex: &str) -> (f32, f32, f32) {
+    let s = hex.trim_start_matches('#');
+    if s.len() < 6 {
+        return (0.5, 0.5, 0.5);
+    }
+    let r = u8::from_str_radix(&s[0..2], 16).unwrap_or(128) as f32 / 255.0;
+    let g = u8::from_str_radix(&s[2..4], 16).unwrap_or(128) as f32 / 255.0;
+    let b = u8::from_str_radix(&s[4..6], 16).unwrap_or(128) as f32 / 255.0;
+    (r, g, b)
 }
 
 /// Naive word-wrap: split a line into chunks of at most `max` chars, breaking
@@ -1106,6 +1200,8 @@ pub struct OdontogramFindingLine {
     pub tooth: String,
     pub face: String,
     pub label: String,
+    /// Hex color string, e.g. "#EF4444"
+    pub color: String,
 }
 
 pub struct OdontogramPdfData {
@@ -1263,35 +1359,71 @@ pub fn generate_odontogram_pdf(
         }
     }
 
-    // ---- Findings list (two columns) ----
+    // ---- Findings list (two columns) with color swatch ----
     if !data.findings.is_empty() && y > 40.0 {
         layer.set_fill_color(rgb(muted));
         layer.use_text("HALLAZGOS", 8.0, Mm(left), Mm(y), &font_bold);
         y -= 2.5;
         hline(&layer, left, 210.0 - left * 2.0, y, 0.3, (0.82, 0.85, 0.88));
-        y -= 6.0;
+        y -= 6.5;
 
-        layer.set_fill_color(rgb(ink));
         let col_x = [left, 110.0_f32];
+        let swatch_size = 3.5_f32;
+        let text_indent = swatch_size + 2.0;
         let mut col = 0usize;
         let mut row_y = y;
         for f in &data.findings {
-            if row_y < 22.0 {
-                break;
-            }
+            if row_y < 22.0 { break; }
+            let cx = col_x[col];
+            let swatch_y = row_y - swatch_size + 1.0;
+            // draw_swatch uses outline_thickness > 0 so the color is always visible.
+            draw_swatch(&layer, cx, swatch_y, swatch_size, hex_to_rgb(&f.color));
             let face = if f.face == "full" || f.face.is_empty() {
                 String::new()
             } else {
                 format!(" ({})", f.face)
             };
             let text = format!("Diente {}{}: {}", f.tooth, face, f.label);
-            let t = if text.len() > 55 { text[..55].to_string() } else { text };
-            layer.use_text(&t, 9.0, Mm(col_x[col]), Mm(row_y), &font);
-            if col == 0 {
-                col = 1;
-            } else {
-                col = 0;
-                row_y -= 5.5;
+            let t = if text.len() > 50 { text[..50].to_string() } else { text };
+            layer.set_fill_color(rgb(ink));
+            layer.use_text(&t, 9.0, Mm(cx + text_indent), Mm(row_y), &font);
+            if col == 0 { col = 1; } else { col = 0; row_y -= 6.0; }
+        }
+        if col == 1 { row_y -= 6.0; }
+        y = row_y;
+    }
+
+    // ---- Color legend (convenciones) ----
+    if y > 40.0 {
+        let mut seen: Vec<(String, String)> = Vec::new();
+        for f in &data.findings {
+            if !seen.iter().any(|(_, lbl)| lbl == &f.label) {
+                seen.push((f.color.clone(), f.label.clone()));
+            }
+        }
+        if !seen.is_empty() {
+            y -= 4.0;
+            layer.set_fill_color(rgb(muted));
+            layer.use_text("CONVENCIONES", 8.0, Mm(left), Mm(y), &font_bold);
+            y -= 2.5;
+            hline(&layer, left, 210.0 - left * 2.0, y, 0.3, (0.82, 0.85, 0.88));
+            y -= 6.5;
+
+            let legend_cols = 4usize;
+            let col_w = (210.0 - left * 2.0) / legend_cols as f32;
+            let swatch_s = 3.5_f32;
+            let text_i = swatch_s + 2.0;
+            let mut lc = 0usize;
+            let mut ly = y;
+            for (color_hex, label) in &seen {
+                if ly < 22.0 { break; }
+                let lx = left + lc as f32 * col_w;
+                draw_swatch(&layer, lx, ly - swatch_s + 1.0, swatch_s, hex_to_rgb(color_hex));
+                let lbl = if label.len() > 20 { &label[..20] } else { label.as_str() };
+                layer.set_fill_color(rgb(ink));
+                layer.use_text(lbl, 8.0, Mm(lx + text_i), Mm(ly), &font);
+                lc += 1;
+                if lc >= legend_cols { lc = 0; ly -= 5.5; }
             }
         }
     }

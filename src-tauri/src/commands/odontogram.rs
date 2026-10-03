@@ -49,7 +49,7 @@ pub fn export_odontogram_pdf(
         phone: get("clinic_phone").unwrap_or_default(),
     };
 
-    let findings = detail
+    let mut findings: Vec<OdontogramFindingLine> = detail
         .findings
         .iter()
         .map(|f| {
@@ -62,9 +62,14 @@ pub fn export_odontogram_pdf(
                 tooth: f.tooth_number.clone(),
                 face: f.face.clone().unwrap_or_default(),
                 label,
+                color: f.color.clone(),
             }
         })
         .collect();
+
+    // Sort by tooth number so findings for the same tooth are grouped together.
+    // FDI numbers are strings like "11", "18", "21"... parse as u32 for correct numeric order.
+    findings.sort_by_key(|f| f.tooth.parse::<u32>().unwrap_or(u32::MAX));
 
     let data = OdontogramPdfData {
         patient_name,

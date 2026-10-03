@@ -1,10 +1,11 @@
 use tauri::State;
 
-use crate::db::repositories::{billing_repo, quote_repo};
+use crate::db::repositories::{billing_repo, odontogram_repo, quote_repo};
 use crate::db::Database;
 use crate::models::billing::Invoice;
+use crate::models::odontogram::FINDING_TYPES;
 use crate::models::quote::{CreateQuoteRequest, Quote, QuoteDetail, UpdateQuoteStatusRequest};
-use crate::services::pdf_generator::{self, ClinicInfo, QuotePdfData, QuotePdfItem};
+use crate::services::pdf_generator::{self, ClinicInfo, OdontogramFindingLine, QuotePdfData, QuotePdfItem};
 use crate::services::session::SessionState;
 
 #[tauri::command]
@@ -211,6 +212,35 @@ pub fn export_quote_pdf(
         })
         .collect();
 
+    // Load odontogram findings (for the color legend) when an odontogram is linked.
+    let mut odontogram_findings: Vec<OdontogramFindingLine> = if let Some(odo_id) = quote.odontogram_id {
+        odontogram_repo::get_detail(&conn, odo_id)
+            .map(|d| {
+                d.findings
+                    .iter()
+                    .map(|f| {
+                        let label = FINDING_TYPES
+                            .iter()
+                            .find(|(id, _, _)| *id == f.finding_type)
+                            .map(|(_, lbl, _)| lbl.to_string())
+                            .unwrap_or_else(|| f.finding_type.clone());
+                        OdontogramFindingLine {
+                            tooth: f.tooth_number.clone(),
+                            face: f.face.clone().unwrap_or_default(),
+                            label,
+                            color: f.color.clone(),
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    // Sort by tooth number so findings for the same tooth are grouped together.
+    odontogram_findings.sort_by_key(|f| f.tooth.parse::<u32>().unwrap_or(u32::MAX));
+
     let data = QuotePdfData {
         quote_number: quote.quote_number.clone(),
         created_at: quote.created_at.clone(),
@@ -225,6 +255,7 @@ pub fn export_quote_pdf(
         notes: quote.notes.clone(),
         odontogram_png: odontogram_bytes,
         logo_path: get_setting(&conn, "clinic_logo_path"),
+        odontogram_findings,
     };
 
     let downloads_dir = dirs::download_dir()
